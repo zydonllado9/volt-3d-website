@@ -137,3 +137,5 @@
  .film-product i{font-size:6px}
 }
 @media(prefers-reduced-motion:reduce){.film-product,.film-scene.is-visible .film-product{animation:none;transition:none;opacity:1;transform:translateY(-50%) scale(.9)}}
+
+.film-product{margin-top:var(--film-lift,0px);filter:brightness(var(--film-light,1));}
