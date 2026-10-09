@@ -53,3 +53,42 @@
 @keyframes fallback-rise{from{opacity:0;translate:0 36px;filter:blur(7px)}to{opacity:1;translate:0 0;filter:blur(0)}}
 @media(max-width:760px){.canvas-fallback{inset:15% 3% 16%;gap:5vw}.fallback-can{width:clamp(52px,17vw,95px);height:clamp(170px,50vw,260px)}.hero-visual #scene{min-height:340px}}
 @media(prefers-reduced-motion:reduce){.hero-visual .visual-glow,.fallback-can{animation:none}.fallback-can{opacity:1;translate:0 0;filter:none}}
+
+
+/* Scroll-led cinematic film inspired by premium immersive product campaigns. */
+.cinematic-film{position:relative;margin:0 -5.95%;overflow:clip;background:#050509}
+.film-intro,.film-scene,.film-outro{height:min(100svh,900px);min-height:640px;position:relative;overflow:hidden;isolation:isolate}
+.film-intro{display:flex;flex-direction:column;justify-content:center;padding:8% 10%;background:#050509}
+.film-intro-backdrop{position:absolute;inset:-8%;z-index:-2;background:radial-gradient(ellipse at 65% 55%,#6c164d72,transparent 42%),radial-gradient(ellipse at 35% 20%,#41245c65,transparent 40%),linear-gradient(115deg,#050509,#100711 55%,#050509);animation:film-drift 16s ease-in-out infinite alternate}
+.film-intro:after{content:"";position:absolute;inset:0;z-index:-1;opacity:.24;background-image:linear-gradient(#ffffff14 1px,transparent 1px),linear-gradient(90deg,#ffffff14 1px,transparent 1px);background-size:70px 70px;mask-image:linear-gradient(90deg,transparent,#000 45%,#000)}
+.film-kicker,.film-overline{font-size:10px;letter-spacing:4px;font-weight:700;color:#ff7abb;text-transform:uppercase}
+.film-title{font:900 clamp(70px,12vw,180px)/.78 var(--display);letter-spacing:-.035em;margin:35px 0 0;max-width:1000px}
+.film-title em,.film-copy h2 em,.film-outro h2 em{color:var(--pink);font-style:normal;text-shadow:0 0 50px #ff168744}
+.film-intro-bottom{position:absolute;left:10%;right:10%;bottom:7%;display:flex;align-items:center;gap:18px;color:#b0a5b5;font-size:8px;letter-spacing:2px}
+.film-scroll-line{height:1px;width:90px;background:linear-gradient(90deg,var(--pink),transparent);transform-origin:left;animation:film-line 2s ease-in-out infinite}
+@keyframes film-line{50%{transform:scaleX(.45);opacity:.5}}
+.film-scene{display:flex;align-items:center;padding:8% 10%;background:#09070d}
+.film-image{position:absolute;inset:-4%;z-index:-3;background-size:cover;background-position:center;transform:scale(1.08);transition:transform 1.4s cubic-bezier(.2,.7,.2,1),filter 1s;will-change:transform}
+.film-scene.is-visible .film-image{transform:scale(1);filter:saturate(1.1)}
+.film-scene-orbit .film-image{background-image:url('https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=2200&q=88');background-position:center 47%}
+.film-scene-pulse .film-image{background-image:url('https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=2200&q=88');background-position:center 55%}
+.film-scene-after .film-image{background-image:url('https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=2200&q=88');background-position:center 68%;filter:hue-rotate(20deg) saturate(.8)}
+.film-vignette{position:absolute;inset:0;z-index:-2;background:linear-gradient(90deg,#050409f2 0%,#050409b8 38%,#05040925 75%,#05040970 100%),linear-gradient(0deg,#050409b0,transparent 40%,#0504097d)}
+.film-index{position:absolute;top:8%;left:10%;font-size:9px;letter-spacing:2.5px;color:#fff}.film-index span{color:#ff7abb}
+.film-copy{max-width:720px;transform:translateY(28px);opacity:0;transition:transform .9s cubic-bezier(.2,.75,.2,1),opacity .9s ease}
+.film-scene.is-visible .film-copy{transform:translateY(0);opacity:1}
+.film-copy .film-overline{font-size:9px;letter-spacing:3px}
+.film-copy h2{font:900 clamp(68px,10vw,148px)/.78 var(--display);letter-spacing:-.025em;margin:23px 0 25px}
+.film-copy>p:last-child{max-width:390px;font-size:14px;line-height:1.9;color:#d8d0dd}
+.film-coordinate{position:absolute;right:9%;bottom:8%;font-size:8px;line-height:2;letter-spacing:2px;text-align:right;color:#d4c5d9}
+.film-sweep{position:absolute;width:70vw;height:1px;right:-15%;top:60%;background:linear-gradient(90deg,transparent,#ff62b3a8,transparent);transform:rotate(-22deg);box-shadow:0 0 30px #ff1687;opacity:.5}
+.film-pulse-ring{position:absolute;right:8%;top:50%;width:min(42vw,520px);aspect-ratio:1;border:1px solid #ff168755;border-radius:50%;transform:translateY(-50%) scale(.7);opacity:0;transition:transform 1.2s ease,opacity 1s ease;box-shadow:0 0 0 30px #ff16870b,0 0 0 70px #ff168706}
+.film-scene.is-visible .film-pulse-ring{transform:translateY(-50%) scale(1);opacity:1}
+.film-outro{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8%;background:radial-gradient(ellipse at 50% 65%,#5b103f80,transparent 50%),#050509}
+.film-outro-glow{position:absolute;width:65vw;aspect-ratio:1;max-height:100%;border-radius:50%;border:1px solid #ff16872b;box-shadow:0 0 0 35px #ff168708,0 0 0 80px #ff168705;animation:outro-breathe 7s ease-in-out infinite alternate}
+@keyframes outro-breathe{to{transform:scale(1.08);opacity:.55}}
+.film-outro h2{position:relative;font:900 clamp(58px,10vw,138px)/.82 var(--display);margin:23px 0 34px;letter-spacing:-.02em}
+.film-outro .button{position:relative}
+.film-outro-mark{position:absolute;right:8%;bottom:7%;font:900 100px/.8 var(--display);color:#ff168726;transform:skew(-12deg)}
+@media(max-width:760px){.cinematic-film{margin:0 -5.55%}.film-intro,.film-scene,.film-outro{min-height:570px;height:82svh;padding:8% 7%}.film-title{font-size:clamp(64px,14vw,105px)}.film-intro-bottom{left:7%;right:7%;bottom:7%;font-size:7px;letter-spacing:1px}.film-index{left:7%;top:7%;font-size:8px}.film-copy h2{font-size:clamp(61px,13vw,92px)}.film-copy>p:last-child{font-size:12px;max-width:290px}.film-vignette{background:linear-gradient(90deg,#050409d9,#05040955 90%),linear-gradient(0deg,#050409c9,transparent 65%)}.film-coordinate{right:7%;bottom:7%;font-size:7px}.film-pulse-ring{right:-14%;width:70vw}.film-outro h2{font-size:clamp(50px,11vw,80px)}}
+@media(prefers-reduced-motion:reduce){.film-intro-backdrop,.film-scroll-line,.film-outro-glow{animation:none}.film-image,.film-copy,.film-pulse-ring{transition:none}.film-copy{opacity:1;transform:none}.film-image{transform:none}}
