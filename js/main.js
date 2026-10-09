@@ -94,6 +94,14 @@ function select(key) {
   if (!flavors[key]) return;
   active = key;
   label.textContent = flavors[key].name;
+  const number = document.querySelector('.active-number');
+  const dot = document.querySelector('.active-flavor-dot');
+  const color = key === 'pink' ? '#ff1687' : key === 'berry' ? '#ad62ff' : '#ff8a35';
+  if (number) number.textContent = String(['pink', 'berry', 'citrus'].indexOf(key) + 1).padStart(2, '0') + ' / 03';
+  if (dot) {
+    dot.style.background = color;
+    dot.style.boxShadow = '0 0 12px ' + color;
+  }
   buttons.forEach(button => {
     const selected = button.dataset.pick === key;
     button.classList.toggle('active', selected);
@@ -141,7 +149,7 @@ function init() {
   if (!canvas || !window.WebGLRenderingContext) return;
   try {
     renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     scene = new THREE.Scene();
