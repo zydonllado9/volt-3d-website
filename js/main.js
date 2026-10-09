@@ -12,7 +12,13 @@ const flavors = {
 let active = 'pink', renderer, scene, camera, cans = [], rings;
 let pointer = { x: 0, y: 0 }, target = { x: 0, y: 0 }, rotation = 0;
 let drag = false, lastX = 0, lastY = 0, frameId = 0, scrollTarget = 0, scrollOffset = 0;
+let sceneInView = true, pageVisible = !document.hidden, lastFrameTime = 0;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isSmallScreen = window.matchMedia('(max-width: 700px)').matches;
+const canAnimate = () => sceneInView && pageVisible && !reduceMotion;
+function requestRender() {
+  if (!frameId && sceneInView && pageVisible) frameId = requestAnimationFrame(animate);
+}
 
 function texture(flavor) {
   const canvasTexture = document.createElement('canvas');
@@ -61,13 +67,13 @@ function makeCan(key, x, scale, z) {
   group.position.set(x * 1.8, -.02 + (key === 'pink' ? -0.25 : 0.2), z - 1.7);
   group.scale.setScalar(scale * 0.42);
   const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(.66, .66, 2.45, 64),
-    new THREE.MeshStandardMaterial({ color: flavor.body, metalness: .72, roughness: .23 })
+    new THREE.CylinderGeometry(.66, .66, 2.45, isSmallScreen ? 32 : 48),
+    new THREE.MeshPhysicalMaterial({ color: flavor.body, metalness: .68, roughness: .24, clearcoat: .82, clearcoatRoughness: .2 })
   );
   group.add(body);
   // Condensation beads catch studio lights for a colder, more tactile finish.
   const dropletMaterial = new THREE.MeshPhysicalMaterial({ color: '#eaf7ff', roughness: .08, metalness: .05, transparent: true, opacity: .62, clearcoat: 1, clearcoatRoughness: .05 });
-  for (let i = 0; i < 38; i++) {
+  for (let i = 0; i < (isSmallScreen ? 16 : 30); i++) {
     const angle = Math.random() * Math.PI * 2;
     const y = (Math.random() - .5) * 2.12;
     const drop = new THREE.Mesh(new THREE.SphereGeometry(.012 + Math.random() * .018, 8, 8), dropletMaterial);
@@ -76,7 +82,7 @@ function makeCan(key, x, scale, z) {
     group.add(drop);
   }
   const labelMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(.665, .665, 1.83, 64, 1, true),
+    new THREE.CylinderGeometry(.665, .665, 1.83, isSmallScreen ? 32 : 48, 1, true),
     new THREE.MeshStandardMaterial({ map: texture(flavor), metalness: .2, roughness: .32 })
   );
   labelMesh.position.y = -.03;
@@ -141,26 +147,30 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 
-function animate() {
-  frameId = requestAnimationFrame(animate);
-  const time = reduceMotion ? 0 : performance.now() * .001;
-  scrollOffset += (scrollTarget - scrollOffset) * .025;
-  pointer.x += (target.x - pointer.x) * .035;
-  pointer.y += (target.y - pointer.y) * .035;
+function animate(now = performance.now()) {
+  frameId = 0;
+  if (!sceneInView || !pageVisible || !renderer) return;
+  const delta = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, .04) : 1 / 60;
+  lastFrameTime = now;
+  const time = reduceMotion ? 0 : now * .001;
+  const smoothing = reduceMotion ? 1 : 1 - Math.exp(-delta * 5.5);
+  scrollOffset += (scrollTarget - scrollOffset) * smoothing;
+  pointer.x += (target.x - pointer.x) * (reduceMotion ? 1 : 1 - Math.exp(-delta * 4.5));
+  pointer.y += (target.y - pointer.y) * (reduceMotion ? 1 : 1 - Math.exp(-delta * 4.5));
   cans.forEach((can, index) => {
     const data = can.userData;
-    if (!reduceMotion && data.entrance < 1) data.entrance = Math.min(1, data.entrance + 0.014);
+    if (!reduceMotion && data.entrance < 1) data.entrance = Math.min(1, data.entrance + delta * 0.82);
     else if (reduceMotion) data.entrance = 1;
     const eased = 1 - Math.pow(1 - data.entrance, 3);
     const introScale = data.introScale + (data.targetScale - data.introScale) * eased;
-    can.scale.setScalar(can.scale.x + (introScale - can.scale.x) * (reduceMotion ? 1 : .055));
+    can.scale.setScalar(can.scale.x + (introScale - can.scale.x) * smoothing);
     const targetX = data.introX + (data.targetX - data.introX) * eased;
-    can.position.x += (targetX - can.position.x) * (reduceMotion ? 1 : .055);
+    can.position.x += (targetX - can.position.x) * smoothing;
     const desiredZ = data.introZ + (data.targetZ - data.introZ) * eased;
-    can.position.z += (desiredZ - can.position.z) * (reduceMotion ? 1 : .055);
-    const float = reduceMotion ? 0 : Math.sin(time * 1.2 + index * 1.7 + data.phase) * .075;
+    can.position.z += (desiredZ - can.position.z) * smoothing;
+    const float = reduceMotion ? 0 : Math.sin(time * .85 + index * 1.7 + data.phase) * .055;
     can.position.y = data.baseY + (data.introY * (1 - eased)) + float + scrollOffset * (index === 1 ? -.2 : .1);
-    can.rotation.y = (reduceMotion ? 0 : time * .09 * (index % 2 ? 1 : -1)) + rotation + pointer.x * .12;
+    can.rotation.y = (reduceMotion ? 0 : time * .055 * (index % 2 ? 1 : -1)) + rotation + pointer.x * .12;
     can.rotation.x = pointer.y * -.045 + scrollOffset * .025;
     // Keep each can's roll bounded. Accumulating rotation every frame slowly turns the labels upside down.
     const baseRoll = index === 1 ? -.025 : index === 0 ? .045 : -.045;
@@ -178,6 +188,7 @@ function animate() {
     });
   }
   renderer.render(scene, camera);
+  if (canAnimate()) requestRender();
 }
 
 function init() {
@@ -194,7 +205,8 @@ function init() {
   if (!window.WebGLRenderingContext) { showFallback(); return; }
   try {
     renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isSmallScreen ? 1 : 1.5));
+    renderer.shadowMap.enabled = false; // No fake hard shadows; keep the product lighting clean and inexpensive.
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     scene = new THREE.Scene();
@@ -226,7 +238,7 @@ function init() {
     });
     const particleMaterial = new THREE.MeshBasicMaterial({ color: '#ffd2f1', transparent: true, opacity: .7 });
     const particleData = [];
-    for (let i = 0; i < 56; i++) {
+    for (let i = 0; i < (isSmallScreen ? 22 : 48); i++) {
       const particle = new THREE.Mesh(new THREE.SphereGeometry(.014, 8, 8), particleMaterial);
       const angle = Math.random() * Math.PI * 2;
       const radius = 1.6 + Math.random() * 2;
@@ -249,6 +261,20 @@ function init() {
     });
     resize();
     window.addEventListener('resize', resize, { passive: true });
+    // Render only while the hero canvas is visible; stop GPU work in background tabs.
+    if ('IntersectionObserver' in window) {
+      const sceneObserver = new IntersectionObserver(entries => {
+        sceneInView = entries[0]?.isIntersecting ?? true;
+        if (sceneInView) { lastFrameTime = 0; requestRender(); }
+        else if (frameId) { cancelAnimationFrame(frameId); frameId = 0; }
+      }, { threshold: 0.02 });
+      sceneObserver.observe(canvas);
+    }
+    document.addEventListener('visibilitychange', () => {
+      pageVisible = !document.hidden;
+      if (pageVisible) { lastFrameTime = 0; requestRender(); }
+      else if (frameId) { cancelAnimationFrame(frameId); frameId = 0; }
+    });
     window.addEventListener('scroll', () => {
       const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
       scrollTarget = (window.scrollY / maxScroll) * 2 - 1;
@@ -275,7 +301,7 @@ function init() {
     canvas.addEventListener('pointerleave', () => { if (!drag) { target.x = 0; target.y = 0; } });
     buttons.forEach(button => button.addEventListener('click', () => select(button.dataset.pick)));
     select(active);
-    animate();
+    requestRender();
   } catch (error) {
     console.error('VOLT 3D failed to initialize:', error);
     showFallback();
