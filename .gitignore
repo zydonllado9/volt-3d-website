@@ -1,0 +1,17 @@
+# Local environment and secret files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
