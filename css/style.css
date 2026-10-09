@@ -139,3 +139,30 @@
 @media(prefers-reduced-motion:reduce){.film-product,.film-scene.is-visible .film-product{animation:none;transition:none;opacity:1;transform:translateY(-50%) scale(.9)}}
 
 .film-product{margin-top:var(--film-lift,0px);filter:brightness(var(--film-light,1));}
+
+
+/* Premium interaction pass: responsive navigation, progress feedback, and focus states. */
+.scroll-progress{position:fixed;z-index:100;top:0;left:0;right:0;height:2px;background:#ffffff0a;pointer-events:none}
+.scroll-progress span{display:block;width:0;height:100%;background:linear-gradient(90deg,var(--pink),var(--purple),var(--orange));box-shadow:0 0 14px #ff168780;transform-origin:left;will-change:width}
+.skip-link{position:fixed;z-index:120;top:10px;left:10px;padding:12px 16px;background:var(--white);color:var(--bg);font-weight:700;font-size:12px;transform:translateY(-160%);transition:transform .2s}
+.skip-link:focus{transform:translateY(0)}
+.menu-toggle{display:none;width:42px;height:42px;border:1px solid #ffffff2e;border-radius:4px;background:#100b14;color:var(--white);cursor:pointer;align-items:center;justify-content:center;flex-direction:column;gap:6px}
+.menu-toggle span{width:17px;height:1px;background:currentColor;transition:transform .2s,opacity .2s}
+.menu-toggle[aria-expanded="true"] span:first-child{transform:translateY(3.5px) rotate(45deg)}
+.menu-toggle[aria-expanded="true"] span:last-child{transform:translateY(-3.5px) rotate(-45deg)}
+@media(max-width:760px){
+  .topbar{position:relative}
+  .menu-toggle{display:flex;order:3;flex:0 0 auto}
+  .main-nav{display:none;position:absolute;top:calc(100% + 1px);left:-4.5%;right:-4.5%;height:auto;padding:12px 5% 18px;background:rgba(9,7,12,.97);border:1px solid #ffffff1b;border-top:0;backdrop-filter:blur(18px);z-index:30;flex-direction:column;align-items:stretch;gap:0;box-shadow:0 20px 35px #0008}
+  .main-nav.is-open{display:flex}
+  .main-nav a{height:auto;min-height:45px;padding:0 4px;font-size:10px;letter-spacing:1.2px;border-bottom:1px solid #ffffff12}
+  .main-nav a:last-child{border-bottom:0}
+  .main-nav a.nav-active:after{left:0;right:auto;top:12px;bottom:12px;width:2px;height:auto}
+  .topbar .top-cta{margin-left:auto;display:inline-flex;font-size:8px;padding:10px 11px}
+}
+@media(max-width:480px){
+  .topbar{gap:9px}
+  .topbar .top-cta{display:none}
+  .main-nav{left:-5.5%;right:-5.5%}
+}
+@media(prefers-reduced-motion:reduce){.menu-toggle span{transition:none}.scroll-progress span{will-change:auto}}
