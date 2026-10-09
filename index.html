@@ -1,17 +1,102 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#100b18">
-<meta name="description" content="VOLT — an interactive 3D product showcase with three bold flavors.">
-<title>VOLT — 3D Flavor Orbit</title>
-<link rel="stylesheet" href="css/style.css">
-
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js"}}</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090f">
+  <meta name="description" content="Meet VOLT: a bold, fictional energy drink concept with three flavors and an interactive 3D product studio.">
+  <meta property="og:title" content="VOLT — Find Your Frequency">
+  <meta property="og:description" content="Three bold flavors. One electric attitude. Explore the VOLT collection in interactive 3D.">
+  <title>VOLT® — Find Your Frequency</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js"}}</script>
 </head>
-<body><div class="site">
-<header><div class="logo">VOLT<span>®</span></div><nav><a href="#flavors">Flavors</a><a href="#story">Our story</a></nav><a class="pill" href="#flavors">Find your flavor ↗</a></header>
-<main class="hero"><section class="copy"><div class="eyebrow">● New energy. New attitude.</div><h1>MEET YOUR<br><em>NEW VOLT.</em></h1><p class="intro">Three bold flavors. One electric attitude. Meet the collection in real 3D: metallic rims, curved can labels, studio lighting, and a slow orbit you can interact with.</p><div class="actions"><a class="primary" href="#flavors">Explore the flavors ↗</a><a class="secondary" href="#story">The VOLT feeling →</a></div></section>
-<section class="stage-wrap" aria-label="Interactive real-time 3D render of three VOLT cans"><canvas id="scene" aria-label="Three-dimensional animated VOLT cans"></canvas><div class="float-card fc-one"><small>Now featuring</small><strong id="current">Pink Citrus</strong></div><div class="float-card fc-two"><small>3D product studio</small><strong>Turn it. Explore it.</strong></div><div class="scene-note">Drag to orbit · Select a flavor below</div></section></main>
-<section class="flavors" id="flavors"><div><small>Explore the collection</small><h2>What's your flavor?</h2></div><div class="buttons"><button class="swatch active" data-pick="pink"><span class="chip" style="--chip:#ff50b7"></span>Pink Citrus</button><button class="swatch" data-pick="berry"><span class="chip" style="--chip:#9b62ff"></span>Berry Blast</button><button class="swatch" data-pick="citrus"><span class="chip" style="--chip:#ff9b35"></span>Citrus Charge</button></div></section>
-<section class="story" id="story"><div class="eyebrow">● This is only the beginning</div><h2>Every flavor has a <span>different energy.</span></h2><p>This version uses actual 3D geometry rendered in WebGL with Three.js—not flat CSS cans. The cans rotate, respond to pointer movement, and use curved label textures with metallic top and bottom details.</p></section><div class="end">Concept demo • Fictional product and flavors • Three.js real-time 3D</div></div>
-<script type="module" src="js/main.js"></script></body></html>
+<body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+  <div class="site">
+    <header class="header">
+      <a class="logo" href="#top" aria-label="VOLT home">VOLT<span>®</span><i aria-hidden="true"></i></a>
+      <nav aria-label="Main navigation">
+        <a href="#collection">Collection</a>
+        <a href="#difference">The difference</a>
+        <a href="#about">Our world</a>
+      </nav>
+      <a class="header-cta" href="#collection">Explore VOLT <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="pulse-dot"></span> A new kind of energy</div>
+          <h1>FIND YOUR<br><span>FREQUENCY.</span></h1>
+          <p class="hero-text">Made for the ones who move differently. Meet three bold flavor concepts wrapped in one unmistakable VOLT attitude.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#collection">Meet the flavors <span aria-hidden="true">↗</span></a>
+            <a class="text-link" href="#about">Get to know VOLT <span aria-hidden="true">→</span></a>
+          </div>
+          <div class="hero-proof">
+            <div class="proof-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+            <p><strong>3 distinct flavors</strong><br><span>One electric state of mind</span></p>
+          </div>
+        </div>
+
+        <div class="stage-wrap" aria-label="Interactive 3D VOLT product display">
+          <div class="stage-grid" aria-hidden="true"></div>
+          <div class="stage-orbit orbit-a" aria-hidden="true"></div>
+          <div class="stage-orbit orbit-b" aria-hidden="true"></div>
+          <canvas id="scene" aria-label="Three-dimensional VOLT cans. Drag to rotate the display."></canvas>
+          <div class="stage-label stage-label-top"><span class="label-line"></span><span>VOLT / 001<br><small>THE FLAVOR SERIES</small></span></div>
+          <div class="float-card fc-one"><span class="card-kicker">In focus</span><strong id="current">Pink Citrus</strong><span class="card-caption">01 — THE ORIGINAL MOOD</span></div>
+          <div class="float-card fc-two"><span class="mini-spark" aria-hidden="true">✳</span><span><strong>Turn it.</strong><br><small>See it from every angle.</small></span></div>
+          <div class="scene-note"><span class="drag-icon" aria-hidden="true">↔</span> DRAG TO EXPLORE <span class="note-divider">/</span> PICK A FLAVOR BELOW</div>
+        </div>
+        <div class="hero-index" aria-hidden="true">01 <span></span> 03</div>
+      </section>
+
+      <section class="ticker" aria-label="VOLT brand statement">
+        <div>OWN YOUR MOMENT <span>✳</span> STAY CURIOUS <span>✳</span> MAKE SOME NOISE <span>✳</span> OWN YOUR MOMENT <span>✳</span> STAY CURIOUS <span>✳</span> MAKE SOME NOISE <span>✳</span></div>
+      </section>
+
+      <section class="collection section-pad" id="collection">
+        <div class="section-heading">
+          <div><div class="eyebrow">01 / Choose your charge</div><h2>Three moods.<br><span>Zero ordinary.</span></h2></div>
+          <p>Every can brings its own character. Pick a flavor to bring it forward in the 3D studio.</p>
+        </div>
+        <div class="flavor-grid">
+          <button class="flavor-card flavor-pink active" data-pick="pink" aria-pressed="true">
+            <span class="flavor-number">01 / BRIGHT</span><span class="flavor-orb" aria-hidden="true"></span>
+            <span class="flavor-name">Pink Citrus</span><span class="flavor-desc">Bright · Zesty · Unapologetic</span><span class="flavor-bottom"><span>Explore flavor</span><span class="arrow-circle">↗</span></span>
+          </button>
+          <button class="flavor-card flavor-berry" data-pick="berry" aria-pressed="false">
+            <span class="flavor-number">02 / BOLD</span><span class="flavor-orb" aria-hidden="true"></span>
+            <span class="flavor-name">Berry Blast</span><span class="flavor-desc">Deep · Juicy · Unexpected</span><span class="flavor-bottom"><span>Explore flavor</span><span class="arrow-circle">↗</span></span>
+          </button>
+          <button class="flavor-card flavor-citrus" data-pick="citrus" aria-pressed="false">
+            <span class="flavor-number">03 / VIVID</span><span class="flavor-orb" aria-hidden="true"></span>
+            <span class="flavor-name">Citrus Charge</span><span class="flavor-desc">Sharp · Sunny · Full of attitude</span><span class="flavor-bottom"><span>Explore flavor</span><span class="arrow-circle">↗</span></span>
+          </button>
+        </div>
+        <p class="collection-footnote">Select any flavor to highlight its can in the interactive studio above.</p>
+      </section>
+
+      <section class="manifesto section-pad" id="difference">
+        <div class="manifesto-art" aria-hidden="true"><div class="manifesto-ring ring-one"></div><div class="manifesto-ring ring-two"></div><div class="manifesto-core">V<span>✳</span></div><div class="manifesto-coordinate">18° 12' N<br>120° 36' E</div></div>
+        <div class="manifesto-copy"><div class="eyebrow">02 / Not here to blend in</div><h2>Different by<br><span>design.</span></h2><p>VOLT is a visual concept built around contrast: clean forms, loud color, metallic detail, and a little bit of motion. It is a reminder that your style doesn't need to ask for permission.</p><div class="manifesto-stats"><div><strong>03</strong><span>FLAVOR WORLDS</span></div><div><strong>01</strong><span>VOLT ATTITUDE</span></div><div><strong>∞</strong><span>WAYS TO SHOW UP</span></div></div></div>
+      </section>
+
+      <section class="about section-pad" id="about">
+        <div class="about-top"><div class="eyebrow">03 / The VOLT mindset</div><div class="about-index">BUILT FOR YOUR NEXT CHAPTER</div></div>
+        <h2>Make the ordinary<br>feel <span>electric.</span></h2>
+        <div class="about-bottom"><p>New ideas start when you stop following the usual current. VOLT celebrates experimentation, self-expression, and the confidence to try a different direction.</p><a class="button button-outline" href="#top">Back to the studio <span aria-hidden="true">↑</span></a></div>
+      </section>
+    </main>
+
+    <footer class="footer"><a class="logo" href="#top">VOLT<span>®</span><i aria-hidden="true"></i></a><p>Concept brand. Fictional product and flavor descriptions.</p><a href="#top">BACK TO TOP ↑</a><span class="copyright">© 2026 VOLT CONCEPT STUDIO</span></footer>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
