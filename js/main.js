@@ -134,6 +134,7 @@ function select(key) {
     can.userData.targetZ = selected ? .65 : -.35;
     can.userData.targetX = can.userData.key === key ? 0 : (can.userData.key === 'berry' ? -1.62 : 1.62);
   });
+  requestRender();
 }
 
 function resize() {
@@ -190,6 +191,43 @@ function animate(now = performance.now()) {
   renderer.render(scene, camera);
   if (canAnimate()) requestRender();
 }
+
+// Accessible mobile navigation and a lightweight scroll progress indicator.
+const menuToggle = document.querySelector('.menu-toggle');
+const mainNav = document.querySelector('#primary-navigation');
+if (menuToggle && mainNav) {
+  const closeMenu = () => {
+    menuToggle.setAttribute('aria-expanded', 'false');
+    menuToggle.setAttribute('aria-label', 'Open navigation');
+    mainNav.classList.remove('is-open');
+  };
+  menuToggle.addEventListener('click', () => {
+    const isOpen = menuToggle.getAttribute('aria-expanded') !== 'true';
+    menuToggle.setAttribute('aria-expanded', String(isOpen));
+    menuToggle.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation');
+    mainNav.classList.toggle('is-open', isOpen);
+  });
+  mainNav.querySelectorAll('a').forEach(link => link.addEventListener('click', closeMenu));
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeMenu(); });
+  document.addEventListener('click', event => {
+    if (!mainNav.contains(event.target) && !menuToggle.contains(event.target)) closeMenu();
+  });
+}
+const progressBar = document.querySelector('#scroll-progress-bar');
+let progressFrame = 0;
+const updateScrollProgress = () => {
+  if (progressFrame) return;
+  progressFrame = requestAnimationFrame(() => {
+    progressFrame = 0;
+    if (!progressBar) return;
+    const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = scrollable > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollable)) : 0;
+    progressBar.style.width = (progress * 100).toFixed(2) + '%';
+  });
+};
+window.addEventListener('scroll', updateScrollProgress, { passive: true });
+window.addEventListener('resize', updateScrollProgress, { passive: true });
+updateScrollProgress();
 
 function init() {
   if (!canvas) return;
