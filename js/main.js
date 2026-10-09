@@ -11,7 +11,7 @@ const flavors = {
 
 let active = 'pink', renderer, scene, camera, cans = [], rings;
 let pointer = { x: 0, y: 0 }, target = { x: 0, y: 0 }, rotation = 0;
-let drag = false, lastX = 0, lastY = 0, frameId = 0;
+let drag = false, lastX = 0, lastY = 0, frameId = 0, scrollTarget = 0, scrollOffset = 0;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function texture(flavor) {
@@ -65,6 +65,16 @@ function makeCan(key, x, scale, z) {
     new THREE.MeshStandardMaterial({ color: flavor.body, metalness: .72, roughness: .23 })
   );
   group.add(body);
+  // Condensation beads catch studio lights for a colder, more tactile finish.
+  const dropletMaterial = new THREE.MeshPhysicalMaterial({ color: '#eaf7ff', roughness: .08, metalness: .05, transparent: true, opacity: .62, clearcoat: 1, clearcoatRoughness: .05 });
+  for (let i = 0; i < 38; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const y = (Math.random() - .5) * 2.12;
+    const drop = new THREE.Mesh(new THREE.SphereGeometry(.012 + Math.random() * .018, 8, 8), dropletMaterial);
+    drop.position.set(Math.sin(angle) * .667, y, Math.cos(angle) * .667);
+    drop.scale.set(.75, 1.25, .6);
+    group.add(drop);
+  }
   const labelMesh = new THREE.Mesh(
     new THREE.CylinderGeometry(.665, .665, 1.83, 64, 1, true),
     new THREE.MeshStandardMaterial({ map: texture(flavor), metalness: .2, roughness: .32 })
@@ -83,6 +93,11 @@ function makeCan(key, x, scale, z) {
   const lid = new THREE.Mesh(new THREE.CylinderGeometry(.48, .48, .018, 64), dark);
   lid.position.y = 1.30;
   group.add(lid);
+  const tab = new THREE.Mesh(new THREE.TorusGeometry(.105, .022, 8, 24), new THREE.MeshStandardMaterial({ color: '#aeb4c1', metalness: .96, roughness: .19 }));
+  tab.rotation.x = Math.PI / 2;
+  tab.position.set(0, 1.316, .09);
+  tab.scale.set(1, 1.45, 1);
+  group.add(tab);
   const bottom = new THREE.Mesh(new THREE.CylinderGeometry(.59, .59, .075, 64), silver);
   bottom.position.y = -1.24;
   group.add(bottom);
@@ -128,18 +143,19 @@ function resize() {
 function animate() {
   frameId = requestAnimationFrame(animate);
   const time = reduceMotion ? 0 : performance.now() * .001;
+  scrollOffset += (scrollTarget - scrollOffset) * .025;
   pointer.x += (target.x - pointer.x) * .035;
   pointer.y += (target.y - pointer.y) * .035;
   cans.forEach((can, index) => {
     const data = can.userData;
     can.scale.setScalar(can.scale.x + (data.targetScale - can.scale.x) * .045);
     can.position.z += (data.targetZ - can.position.z) * .035;
-    can.position.y = data.baseY + (reduceMotion ? 0 : Math.sin(time * 1.2 + index * 1.7) * .075);
+    can.position.y = data.baseY + (reduceMotion ? 0 : Math.sin(time * 1.2 + index * 1.7) * .075) + scrollOffset * (index === 1 ? -.12 : .07);
     can.rotation.y = (reduceMotion ? 0 : time * .18 * (index % 2 ? 1 : -1)) + rotation + pointer.x * .17;
-    can.rotation.x = pointer.y * -.08;
+    can.rotation.x = pointer.y * -.08 + scrollOffset * .018;
   });
   if (rings) {
-    rings.rotation.y = -.16 + pointer.x * .09;
+    rings.rotation.y = -.16 + pointer.x * .09 + (reduceMotion ? 0 : time * .035);
     rings.rotation.x = pointer.y * .04;
   }
   renderer.render(scene, camera);
@@ -195,6 +211,10 @@ function init() {
     });
     resize();
     window.addEventListener('resize', resize, { passive: true });
+    window.addEventListener('scroll', () => {
+      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      scrollTarget = (window.scrollY / maxScroll) * 2 - 1;
+    }, { passive: true });
     canvas.addEventListener('pointermove', event => {
       const rect = canvas.getBoundingClientRect();
       target.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -223,6 +243,37 @@ function init() {
     canvas.setAttribute('aria-label', '3D preview unavailable. Check WebGL support and your internet connection.');
     canvas.style.display = 'none';
   }
+}
+
+// Reveal key content as it enters the viewport.
+if ('IntersectionObserver' in window && !reduceMotion) {
+  const revealTargets = document.querySelectorAll('.story-copy, .story-visual, .lifestyle-heading, .life-card, .closing-banner, .flavor-card');
+  revealTargets.forEach((element, index) => {
+    element.classList.add('reveal-ready');
+    element.style.setProperty('--reveal-delay', (index % 4) * 85 + 'ms');
+  });
+  const revealObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: .12 });
+  revealTargets.forEach(element => revealObserver.observe(element));
+}
+
+// Highlight the navigation item for the section currently in view.
+if ('IntersectionObserver' in window) {
+  const sections = [...document.querySelectorAll('main section[id]')];
+  const navLinks = [...document.querySelectorAll('.main-nav a')];
+  const navObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      navLinks.forEach(link => link.classList.toggle('nav-active', link.getAttribute('href') === '#' + entry.target.id));
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+  sections.forEach(section => navObserver.observe(section));
 }
 
 document.querySelectorAll('a[href^="#"]').forEach(link => {
