@@ -29,3 +29,27 @@
 ::selection{background:var(--pink);color:#12060d}
 @media(max-width:760px){.gym-image,.game-image,.study-image,.night-image{background-position:center 38%}}
 @media(prefers-reduced-motion:reduce){.reveal-ready{opacity:1;transform:none;transition:none}.life-image{transition:none}}
+
+
+/* VOLT studio pass — cinematic entrance support, graceful fallback and interaction polish. */
+.hero-visual{perspective:1100px}
+.hero-visual #scene{filter:drop-shadow(0 22px 34px #ff16871b)}
+.hero-visual .visual-glow{animation:studio-breathe 7s ease-in-out infinite alternate}
+@keyframes studio-breathe{from{transform:scale(.9);opacity:.65}to{transform:scale(1.08);opacity:1}}
+.flavor-card .mini-can{transition:transform .5s cubic-bezier(.2,.8,.2,1),filter .5s}
+.flavor-card:hover .mini-can,.flavor-card.active .mini-can{transform:translateY(-5px) rotate(-5deg);filter:drop-shadow(0 8px 12px var(--flavor))}
+.flavor-card.active .card-arrow{color:var(--flavor);transform:translate(2px,-2px)}
+.card-arrow{transition:transform .25s,color .25s}
+.hero-visual .active-flavor{transition:border-color .35s,transform .35s}
+.canvas-fallback{position:absolute;inset:9% 5% 13%;z-index:1;display:flex;align-items:center;justify-content:center;gap:clamp(8px,2.8vw,38px);perspective:900px;pointer-events:none}
+.fallback-can{position:relative;width:clamp(56px,9vw,118px);height:clamp(175px,31vw,345px);border-radius:22px 22px 18px 18px;border:1px solid #ffffff79;background:linear-gradient(90deg,#17111f 0%,var(--can-dark) 13%,var(--can-color) 34%,var(--can-light) 49%,var(--can-color) 68%,var(--can-dark) 91%,#09080d 100%);box-shadow:inset 5px 0 7px #ffffff16,inset -6px 0 10px #0009,0 24px 38px #0009;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;transform:rotate(-5deg);overflow:visible;animation:fallback-rise .9s cubic-bezier(.2,.75,.2,1) both}
+.fallback-can:before{content:"";position:absolute;left:-2px;right:-2px;top:-9px;height:12px;border-radius:50%;background:linear-gradient(#f4f2fc,#6e6977 42%,#24202d 75%,#c8c5d2);border:1px solid #ffffff75}
+.fallback-can:after{content:"";position:absolute;left:4%;right:4%;bottom:-6px;height:11px;border-radius:50%;border:1px solid #ffffff55;background:linear-gradient(#34303b,#15121b)}
+.fallback-can span{font:900 clamp(19px,3.1vw,38px)/.8 var(--display);letter-spacing:-1px;color:#fff;text-shadow:0 2px 5px #0008;transform:skew(-7deg)}
+.fallback-can small{font:700 clamp(6px,.8vw,9px) var(--body);letter-spacing:1px;text-align:center;color:#fff}
+.fallback-berry{--can-color:#7545db;--can-light:#b99aff;--can-dark:#2c174f;animation-delay:.12s;transform:rotate(-10deg) translateY(18px) scale(.91)}
+.fallback-pink{--can-color:#ed399d;--can-light:#ff9ad3;--can-dark:#5c173b;z-index:2;animation-delay:0s}
+.fallback-citrus{--can-color:#ed8426;--can-light:#ffc271;--can-dark:#68300d;animation-delay:.22s;transform:rotate(9deg) translateY(16px) scale(.91)}
+@keyframes fallback-rise{from{opacity:0;translate:0 36px;filter:blur(7px)}to{opacity:1;translate:0 0;filter:blur(0)}}
+@media(max-width:760px){.canvas-fallback{inset:15% 3% 16%;gap:5vw}.fallback-can{width:clamp(52px,17vw,95px);height:clamp(170px,50vw,260px)}.hero-visual #scene{min-height:340px}}
+@media(prefers-reduced-motion:reduce){.hero-visual .visual-glow,.fallback-can{animation:none}.fallback-can{opacity:1;translate:0 0;filter:none}}
