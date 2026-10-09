@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#100b18">
+<meta name="description" content="VOLT — an interactive 3D product showcase with three bold flavors.">
+<title>VOLT — 3D Flavor Orbit</title>
+<link rel="stylesheet" href="css/style.css">
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js"}}</script>
+</head>
+<body><div class="site">
+<header><div class="logo">VOLT<span>®</span></div><nav><a href="#flavors">Flavors</a><a href="#story">Our story</a></nav><a class="pill" href="#flavors">Find your flavor ↗</a></header>
+<main class="hero"><section class="copy"><div class="eyebrow">● New energy. New attitude.</div><h1>MEET YOUR<br><em>NEW VOLT.</em></h1><p class="intro">Three bold flavors. One electric attitude. Meet the collection in real 3D: metallic rims, curved can labels, studio lighting, and a slow orbit you can interact with.</p><div class="actions"><a class="primary" href="#flavors">Explore the flavors ↗</a><a class="secondary" href="#story">The VOLT feeling →</a></div></section>
+<section class="stage-wrap" aria-label="Interactive real-time 3D render of three VOLT cans"><canvas id="scene" aria-label="Three-dimensional animated VOLT cans"></canvas><div class="float-card fc-one"><small>Now featuring</small><strong id="current">Pink Citrus</strong></div><div class="float-card fc-two"><small>3D product studio</small><strong>Turn it. Explore it.</strong></div><div class="scene-note">Drag to orbit · Select a flavor below</div></section></main>
+<section class="flavors" id="flavors"><div><small>Explore the collection</small><h2>What's your flavor?</h2></div><div class="buttons"><button class="swatch active" data-pick="pink"><span class="chip" style="--chip:#ff50b7"></span>Pink Citrus</button><button class="swatch" data-pick="berry"><span class="chip" style="--chip:#9b62ff"></span>Berry Blast</button><button class="swatch" data-pick="citrus"><span class="chip" style="--chip:#ff9b35"></span>Citrus Charge</button></div></section>
+<section class="story" id="story"><div class="eyebrow">● This is only the beginning</div><h2>Every flavor has a <span>different energy.</span></h2><p>This version uses actual 3D geometry rendered in WebGL with Three.js—not flat CSS cans. The cans rotate, respond to pointer movement, and use curved label textures with metallic top and bottom details.</p></section><div class="end">Concept demo • Fictional product and flavors • Three.js real-time 3D</div></div>
+<script type="module" src="js/main.js"></script></body></html>
