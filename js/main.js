@@ -1,11 +1,235 @@
 import * as THREE from 'three';
-const canvas=document.querySelector('#scene'), label=document.querySelector('#current'), buttons=[...document.querySelectorAll('[data-pick]')];
-const flavors={pink:{name:'Pink Citrus',body:'#ed399d',light:'#ff78c5',accent:'#ffd7f0'},berry:{name:'Berry Blast',body:'#7545db',light:'#aa8bff',accent:'#efe6ff'},citrus:{name:'Citrus Charge',body:'#ed8426',light:'#ffbd59',accent:'#fff0c7'}};
-let active='pink',renderer,scene,camera,cans=[],rings,pointer={x:0,y:0},target={x:0,y:0},rotation=0,drag=false,lastX=0;
-function texture(f){const c=document.createElement('canvas');c.width=512;c.height=1024;const x=c.getContext('2d'),g=x.createLinearGradient(0,0,512,0);g.addColorStop(0,'#1c1025');g.addColorStop(.3,f.body);g.addColorStop(.55,f.light);g.addColorStop(.8,f.body);g.addColorStop(1,'#180e22');x.fillStyle=g;x.fillRect(0,0,512,1024);const shine=x.createLinearGradient(0,0,512,0);shine.addColorStop(0,'#fff0');shine.addColorStop(.5,'#ffffff38');shine.addColorStop(1,'#fff0');x.fillStyle=shine;x.fillRect(0,0,512,1024);x.textAlign='center';x.fillStyle='white';x.font='bold 90px Arial';x.fillText('VOLT',256,410);x.font='bold 24px Arial';x.fillText('ENERGY',256,455);x.fillStyle=f.accent;x.font='bold 18px Arial';x.fillText(f.name.toUpperCase(),256,545);x.fillStyle='#ffffffcc';x.font='15px Arial';x.fillText('SPARK YOUR EVERYDAY',256,590);x.strokeStyle='#ffffff66';x.beginPath();x.moveTo(90,485);x.lineTo(422,485);x.moveTo(110,620);x.lineTo(402,620);x.stroke();const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t}
-function makeCan(key,x,scale,z){const f=flavors[key],g=new THREE.Group();g.position.set(x,-.02,z);g.scale.setScalar(scale);const body=new THREE.Mesh(new THREE.CylinderGeometry(.66,.66,2.45,64),new THREE.MeshStandardMaterial({color:f.body,metalness:.65,roughness:.26}));g.add(body);const labelMesh=new THREE.Mesh(new THREE.CylinderGeometry(.665,.665,1.83,64,1,true),new THREE.MeshStandardMaterial({map:texture(f),metalness:.22,roughness:.34}));labelMesh.position.y=-.03;g.add(labelMesh);const silver=new THREE.MeshStandardMaterial({color:'#c7cbd5',metalness:.95,roughness:.18}),dark=new THREE.MeshStandardMaterial({color:'#626574',metalness:.9,roughness:.23});const top=new THREE.Mesh(new THREE.CylinderGeometry(.61,.61,.085,64),silver);top.position.y=1.25;g.add(top);const rim=new THREE.Mesh(new THREE.TorusGeometry(.605,.04,12,64),dark);rim.rotation.x=Math.PI/2;rim.position.y=1.28;g.add(rim);const lid=new THREE.Mesh(new THREE.CylinderGeometry(.48,.48,.018,64),dark);lid.position.y=1.30;g.add(lid);const bottom=new THREE.Mesh(new THREE.CylinderGeometry(.59,.59,.075,64),silver);bottom.position.y=-1.24;g.add(bottom);g.userData={key,baseY:-.02,targetScale:scale,targetZ:z};return g}
-function select(key){if(!flavors[key])return;active=key;label.textContent=flavors[key].name;buttons.forEach(b=>{const yes=b.dataset.pick===key;b.classList.toggle('active',yes);b.setAttribute('aria-pressed',String(yes))});cans.forEach(c=>{const yes=c.userData.key===key;c.userData.targetScale=yes?(key==='pink'?1.03:.9):(c.userData.key==='pink'?.78:.68);c.userData.targetZ=yes?.65:-.35})}
-function resize(){if(!renderer)return;const w=Math.max(1,canvas.clientWidth),h=Math.max(1,canvas.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.position.z=w<520?10.4:w<850?9.5:8.9;camera.fov=w<520?38:34;camera.updateProjectionMatrix()}
-function init(){try{renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(34,1,.1,100);camera.position.set(0,.25,8.9);scene.add(new THREE.HemisphereLight('#ffeaff','#24132d',2.1));const key=new THREE.DirectionalLight('#fff1f8',4.3);key.position.set(-3,5,6);scene.add(key);const rim=new THREE.DirectionalLight('#bc80ff',3.2);rim.position.set(4,1,-4);scene.add(rim);const front=new THREE.PointLight('#ff78c5',38,12);front.position.set(0,1,4);scene.add(front);rings=new THREE.Group();scene.add(rings);for(const [r,op,col] of [[2.5,.24,'#ff79d1'],[2.9,.18,'#c79aff']]){const m=new THREE.Mesh(new THREE.TorusGeometry(r,.008,8,128),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op}));m.rotation.x=r===2.5?1.12:.92;m.rotation.y=r===2.5?-.25:.55;rings.add(m)}const pm=new THREE.MeshBasicMaterial({color:'#ffd2f1',transparent:true,opacity:.7});for(let i=0;i<45;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.014,8,8),pm),a=Math.random()*Math.PI*2,r=1.6+Math.random()*2;p.position.set(Math.cos(a)*r,(Math.random()-.5)*4,Math.sin(a)*r*.48);rings.add(p)}cans=[makeCan('berry',-1.38,.78,-.35),makeCan('pink',0,1.03,.45),makeCan('citrus',1.38,.78,-.35)];cans.forEach((c,i)=>{c.rotation.z=i===1?-.055:i===0?.12:-.12;scene.add(c)});resize();window.addEventListener('resize',resize);canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();target.x=(e.clientX-r.left)/r.width*2-1;target.y=-((e.clientY-r.top)/r.height*2-1);if(drag)rotation+=(e.clientX-lastX)*.008;lastX=e.clientX});canvas.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;canvas.setPointerCapture?.(e.pointerId)});canvas.addEventListener('pointerup',()=>drag=false);canvas.addEventListener('pointercancel',()=>drag=false);canvas.addEventListener('pointerleave',()=>{target.x=0;target.y=0});buttons.forEach(b=>b.addEventListener('click',()=>select(b.dataset.pick)));select(active);animate()}catch(e){console.error('VOLT 3D failed to initialize',e);canvas.setAttribute('aria-label','3D preview unavailable. Check WebGL and internet access.')}} 
-function animate(){requestAnimationFrame(animate);const t=performance.now()*.001;pointer.x+=(target.x-pointer.x)*.035;pointer.y+=(target.y-pointer.y)*.035;cans.forEach((c,i)=>{const d=c.userData;c.scale.setScalar(c.scale.x+(d.targetScale-c.scale.x)*.045);c.position.z+=(d.targetZ-c.position.z)*.035;c.position.y=d.baseY+Math.sin(t*1.2+i*1.7)*.075;c.rotation.y=t*.18*(i%2?1:-1)+rotation+pointer.x*.17;c.rotation.x=pointer.y*-.08});if(rings){rings.rotation.y=-.16+pointer.x*.09;rings.rotation.x=pointer.y*.04}renderer.render(scene,camera)}
+
+const canvas = document.querySelector('#scene');
+const label = document.querySelector('#current');
+const buttons = [...document.querySelectorAll('[data-pick]')];
+const flavors = {
+  pink: { name: 'Pink Citrus', body: '#ed399d', light: '#ff78c5', accent: '#ffd7f0' },
+  berry: { name: 'Berry Blast', body: '#7545db', light: '#aa8bff', accent: '#efe6ff' },
+  citrus: { name: 'Citrus Charge', body: '#ed8426', light: '#ffbd59', accent: '#fff0c7' }
+};
+
+let active = 'pink', renderer, scene, camera, cans = [], rings;
+let pointer = { x: 0, y: 0 }, target = { x: 0, y: 0 }, rotation = 0;
+let drag = false, lastX = 0, lastY = 0, frameId = 0;
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function texture(flavor) {
+  const canvasTexture = document.createElement('canvas');
+  canvasTexture.width = 512;
+  canvasTexture.height = 1024;
+  const ctx = canvasTexture.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 512, 0);
+  gradient.addColorStop(0, '#1c1025');
+  gradient.addColorStop(.3, flavor.body);
+  gradient.addColorStop(.55, flavor.light);
+  gradient.addColorStop(.8, flavor.body);
+  gradient.addColorStop(1, '#180e22');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 512, 1024);
+  const shine = ctx.createLinearGradient(0, 0, 512, 0);
+  shine.addColorStop(0, '#ffffff00');
+  shine.addColorStop(.5, '#ffffff38');
+  shine.addColorStop(1, '#ffffff00');
+  ctx.fillStyle = shine;
+  ctx.fillRect(0, 0, 512, 1024);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 90px Arial';
+  ctx.fillText('VOLT', 256, 410);
+  ctx.font = 'bold 24px Arial';
+  ctx.fillText('ENERGY', 256, 455);
+  ctx.fillStyle = flavor.accent;
+  ctx.font = 'bold 18px Arial';
+  ctx.fillText(flavor.name.toUpperCase(), 256, 545);
+  ctx.fillStyle = '#ffffffcc';
+  ctx.font = '15px Arial';
+  ctx.fillText('SPARK YOUR EVERYDAY', 256, 590);
+  ctx.strokeStyle = '#ffffff66';
+  ctx.beginPath();
+  ctx.moveTo(90, 485); ctx.lineTo(422, 485);
+  ctx.moveTo(110, 620); ctx.lineTo(402, 620);
+  ctx.stroke();
+  const map = new THREE.CanvasTexture(canvasTexture);
+  map.colorSpace = THREE.SRGBColorSpace;
+  return map;
+}
+
+function makeCan(key, x, scale, z) {
+  const flavor = flavors[key];
+  const group = new THREE.Group();
+  group.position.set(x, -.02, z);
+  group.scale.setScalar(scale);
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(.66, .66, 2.45, 64),
+    new THREE.MeshStandardMaterial({ color: flavor.body, metalness: .72, roughness: .23 })
+  );
+  group.add(body);
+  const labelMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(.665, .665, 1.83, 64, 1, true),
+    new THREE.MeshStandardMaterial({ map: texture(flavor), metalness: .2, roughness: .32 })
+  );
+  labelMesh.position.y = -.03;
+  group.add(labelMesh);
+  const silver = new THREE.MeshStandardMaterial({ color: '#c7cbd5', metalness: .95, roughness: .16 });
+  const dark = new THREE.MeshStandardMaterial({ color: '#626574', metalness: .9, roughness: .22 });
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(.61, .61, .085, 64), silver);
+  top.position.y = 1.25;
+  group.add(top);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(.605, .04, 12, 64), dark);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 1.28;
+  group.add(rim);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(.48, .48, .018, 64), dark);
+  lid.position.y = 1.30;
+  group.add(lid);
+  const bottom = new THREE.Mesh(new THREE.CylinderGeometry(.59, .59, .075, 64), silver);
+  bottom.position.y = -1.24;
+  group.add(bottom);
+  group.userData = { key, baseY: -.02, targetScale: scale, targetZ: z };
+  return group;
+}
+
+function select(key) {
+  if (!flavors[key]) return;
+  active = key;
+  label.textContent = flavors[key].name;
+  buttons.forEach(button => {
+    const selected = button.dataset.pick === key;
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+  cans.forEach(can => {
+    const selected = can.userData.key === key;
+    can.userData.targetScale = selected ? (key === 'pink' ? 1.03 : .9) : (can.userData.key === 'pink' ? .78 : .68);
+    can.userData.targetZ = selected ? .65 : -.35;
+  });
+}
+
+function resize() {
+  if (!renderer || !camera) return;
+  const width = Math.max(1, canvas.clientWidth);
+  const height = Math.max(1, canvas.clientHeight);
+  renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.position.z = width < 460 ? 10.8 : width < 700 ? 10 : width < 950 ? 9.5 : 8.9;
+  camera.fov = width < 460 ? 39 : width < 700 ? 37 : 34;
+  camera.updateProjectionMatrix();
+}
+
+function animate() {
+  frameId = requestAnimationFrame(animate);
+  const time = reduceMotion ? 0 : performance.now() * .001;
+  pointer.x += (target.x - pointer.x) * .035;
+  pointer.y += (target.y - pointer.y) * .035;
+  cans.forEach((can, index) => {
+    const data = can.userData;
+    can.scale.setScalar(can.scale.x + (data.targetScale - can.scale.x) * .045);
+    can.position.z += (data.targetZ - can.position.z) * .035;
+    can.position.y = data.baseY + (reduceMotion ? 0 : Math.sin(time * 1.2 + index * 1.7) * .075);
+    can.rotation.y = (reduceMotion ? 0 : time * .18 * (index % 2 ? 1 : -1)) + rotation + pointer.x * .17;
+    can.rotation.x = pointer.y * -.08;
+  });
+  if (rings) {
+    rings.rotation.y = -.16 + pointer.x * .09;
+    rings.rotation.x = pointer.y * .04;
+  }
+  renderer.render(scene, camera);
+}
+
+function init() {
+  if (!canvas || !window.WebGLRenderingContext) return;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(34, 1, .1, 100);
+    camera.position.set(0, .25, 8.9);
+    scene.add(new THREE.HemisphereLight('#ffeaff', '#24132d', 2.1));
+    const keyLight = new THREE.DirectionalLight('#fff1f8', 4.3);
+    keyLight.position.set(-3, 5, 6);
+    scene.add(keyLight);
+    const rimLight = new THREE.DirectionalLight('#bc80ff', 3.2);
+    rimLight.position.set(4, 1, -4);
+    scene.add(rimLight);
+    const frontLight = new THREE.PointLight('#ff78c5', 38, 12);
+    frontLight.position.set(0, 1, 4);
+    scene.add(frontLight);
+    rings = new THREE.Group();
+    scene.add(rings);
+    [[2.5, .24, '#ff79d1'], [2.9, .18, '#c79aff']].forEach(([radius, opacity, color], index) => {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(radius, .008, 8, 128),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
+      );
+      ring.rotation.x = index === 0 ? 1.12 : .92;
+      ring.rotation.y = index === 0 ? -.25 : .55;
+      rings.add(ring);
+    });
+    const particleMaterial = new THREE.MeshBasicMaterial({ color: '#ffd2f1', transparent: true, opacity: .7 });
+    for (let i = 0; i < 34; i++) {
+      const particle = new THREE.Mesh(new THREE.SphereGeometry(.014, 8, 8), particleMaterial);
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 1.6 + Math.random() * 2;
+      particle.position.set(Math.cos(angle) * radius, (Math.random() - .5) * 4, Math.sin(angle) * radius * .48);
+      rings.add(particle);
+    }
+    cans = [
+      makeCan('berry', -1.38, .78, -.35),
+      makeCan('pink', 0, 1.03, .45),
+      makeCan('citrus', 1.38, .78, -.35)
+    ];
+    cans.forEach((can, index) => {
+      can.rotation.z = index === 1 ? -.055 : index === 0 ? .12 : -.12;
+      scene.add(can);
+    });
+    resize();
+    window.addEventListener('resize', resize, { passive: true });
+    canvas.addEventListener('pointermove', event => {
+      const rect = canvas.getBoundingClientRect();
+      target.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      target.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+      if (drag) {
+        rotation += (event.clientX - lastX) * .008;
+        lastX = event.clientX;
+        lastY = event.clientY;
+      }
+    });
+    canvas.addEventListener('pointerdown', event => {
+      drag = true;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
+    });
+    const stopDrag = () => { drag = false; };
+    canvas.addEventListener('pointerup', stopDrag);
+    canvas.addEventListener('pointercancel', stopDrag);
+    canvas.addEventListener('pointerleave', () => { if (!drag) { target.x = 0; target.y = 0; } });
+    buttons.forEach(button => button.addEventListener('click', () => select(button.dataset.pick)));
+    select(active);
+    animate();
+  } catch (error) {
+    console.error('VOLT 3D failed to initialize:', error);
+    canvas.setAttribute('aria-label', '3D preview unavailable. Check WebGL support and your internet connection.');
+    canvas.style.display = 'none';
+  }
+}
+
+document.querySelectorAll('a[href^="#"]').forEach(link => {
+  link.addEventListener('click', event => {
+    const targetElement = document.querySelector(link.getAttribute('href'));
+    if (targetElement) {
+      event.preventDefault();
+      targetElement.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+  });
+});
+
+window.addEventListener('pagehide', () => {
+  if (frameId) cancelAnimationFrame(frameId);
+  if (renderer) renderer.dispose();
+});
+
 init();
