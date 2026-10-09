@@ -126,7 +126,7 @@ function select(key) {
     const selected = can.userData.key === key;
     can.userData.targetScale = selected ? (key === 'pink' ? 1.03 : .9) : (can.userData.key === 'pink' ? .78 : .68);
     can.userData.targetZ = selected ? .65 : -.35;
-    can.userData.targetX = can.userData.key === key ? 0 : (can.userData.key === 'berry' ? -1.38 : 1.38);
+    can.userData.targetX = can.userData.key === key ? 0 : (can.userData.key === 'berry' ? -1.62 : 1.62);
   });
 }
 
@@ -160,9 +160,12 @@ function animate() {
     can.position.z += (desiredZ - can.position.z) * (reduceMotion ? 1 : .055);
     const float = reduceMotion ? 0 : Math.sin(time * 1.2 + index * 1.7 + data.phase) * .075;
     can.position.y = data.baseY + (data.introY * (1 - eased)) + float + scrollOffset * (index === 1 ? -.2 : .1);
-    can.rotation.y = (reduceMotion ? 0 : time * .18 * (index % 2 ? 1 : -1)) + rotation + pointer.x * .17;
-    can.rotation.x = pointer.y * -.08 + scrollOffset * .045;
-    can.rotation.z += (index === 1 ? -.055 : index === 0 ? .12 : -.12) * (reduceMotion ? 1 : .018);
+    can.rotation.y = (reduceMotion ? 0 : time * .09 * (index % 2 ? 1 : -1)) + rotation + pointer.x * .12;
+    can.rotation.x = pointer.y * -.045 + scrollOffset * .025;
+    // Keep each can's roll bounded. Accumulating rotation every frame slowly turns the labels upside down.
+    const baseRoll = index === 1 ? -.025 : index === 0 ? .045 : -.045;
+    const rollSway = reduceMotion ? 0 : Math.sin(time * .65 + data.phase) * .012;
+    can.rotation.z = baseRoll + rollSway;
   });
   if (rings) {
     rings.rotation.y = -.16 + pointer.x * .09 + (reduceMotion ? 0 : time * .035);
