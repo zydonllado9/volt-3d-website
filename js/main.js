@@ -372,8 +372,15 @@ if ('IntersectionObserver' in window && !reduceMotion) {
       const rect = sceneElement.getBoundingClientRect();
       const progress = (window.innerHeight - rect.top) / (window.innerHeight + rect.height);
       const image = sceneElement.querySelector('.film-image');
+      const product = sceneElement.querySelector('.film-product');
       if (image && rect.bottom > 0 && rect.top < window.innerHeight) {
-        image.style.backgroundPosition = 'center ' + (45 + Math.max(-1, Math.min(1, progress - 0.5)) * 12) + '%';
+        const travel = Math.max(-1, Math.min(1, progress - 0.5));
+        image.style.backgroundPosition = 'center ' + (45 + travel * 15) + '%';
+        // Tie the can's tiny lift and lighting shift to the scroll position, not a linear spin.
+        if (product) {
+          product.style.setProperty('--film-lift', (travel * -18).toFixed(1) + 'px');
+          product.style.setProperty('--film-light', (1 + travel * .08).toFixed(2));
+        }
       }
     });
   };
