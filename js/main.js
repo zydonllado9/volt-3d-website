@@ -58,8 +58,8 @@ function texture(flavor) {
 function makeCan(key, x, scale, z) {
   const flavor = flavors[key];
   const group = new THREE.Group();
-  group.position.set(x, -.02, z);
-  group.scale.setScalar(scale);
+  group.position.set(x * 1.8, -.02 + (key === 'pink' ? -0.25 : 0.2), z - 1.7);
+  group.scale.setScalar(scale * 0.42);
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(.66, .66, 2.45, 64),
     new THREE.MeshStandardMaterial({ color: flavor.body, metalness: .72, roughness: .23 })
@@ -101,7 +101,7 @@ function makeCan(key, x, scale, z) {
   const bottom = new THREE.Mesh(new THREE.CylinderGeometry(.59, .59, .075, 64), silver);
   bottom.position.y = -1.24;
   group.add(bottom);
-  group.userData = { key, baseY: -.02, targetScale: scale, targetZ: z };
+  group.userData = { key, baseY: -.02, targetScale: scale, targetZ: z, introX: x * 1.8, introY: key === 'pink' ? -0.25 : 0.2, introZ: z - 1.7, introScale: scale * 0.42, targetX: x, entrance: 0, phase: Math.random() * Math.PI * 2 };
   return group;
 }
 
@@ -126,6 +126,7 @@ function select(key) {
     const selected = can.userData.key === key;
     can.userData.targetScale = selected ? (key === 'pink' ? 1.03 : .9) : (can.userData.key === 'pink' ? .78 : .68);
     can.userData.targetZ = selected ? .65 : -.35;
+    can.userData.targetX = can.userData.key === key ? 0 : (can.userData.key === 'berry' ? -1.38 : 1.38);
   });
 }
 
@@ -148,21 +149,46 @@ function animate() {
   pointer.y += (target.y - pointer.y) * .035;
   cans.forEach((can, index) => {
     const data = can.userData;
-    can.scale.setScalar(can.scale.x + (data.targetScale - can.scale.x) * .045);
-    can.position.z += (data.targetZ - can.position.z) * .035;
-    can.position.y = data.baseY + (reduceMotion ? 0 : Math.sin(time * 1.2 + index * 1.7) * .075) + scrollOffset * (index === 1 ? -.12 : .07);
+    if (!reduceMotion && data.entrance < 1) data.entrance = Math.min(1, data.entrance + 0.014);
+    else if (reduceMotion) data.entrance = 1;
+    const eased = 1 - Math.pow(1 - data.entrance, 3);
+    const introScale = data.introScale + (data.targetScale - data.introScale) * eased;
+    can.scale.setScalar(can.scale.x + (introScale - can.scale.x) * (reduceMotion ? 1 : .055));
+    const targetX = data.introX + (data.targetX - data.introX) * eased;
+    can.position.x += (targetX - can.position.x) * (reduceMotion ? 1 : .055);
+    const desiredZ = data.introZ + (data.targetZ - data.introZ) * eased;
+    can.position.z += (desiredZ - can.position.z) * (reduceMotion ? 1 : .055);
+    const float = reduceMotion ? 0 : Math.sin(time * 1.2 + index * 1.7 + data.phase) * .075;
+    can.position.y = data.baseY + (data.introY * (1 - eased)) + float + scrollOffset * (index === 1 ? -.2 : .1);
     can.rotation.y = (reduceMotion ? 0 : time * .18 * (index % 2 ? 1 : -1)) + rotation + pointer.x * .17;
-    can.rotation.x = pointer.y * -.08 + scrollOffset * .018;
+    can.rotation.x = pointer.y * -.08 + scrollOffset * .045;
+    can.rotation.z += (index === 1 ? -.055 : index === 0 ? .12 : -.12) * (reduceMotion ? 1 : .018);
   });
   if (rings) {
     rings.rotation.y = -.16 + pointer.x * .09 + (reduceMotion ? 0 : time * .035);
     rings.rotation.x = pointer.y * .04;
+    (rings.userData.particles || []).forEach((particle, index) => {
+      if (!reduceMotion) {
+        particle.position.y = particle.userData.originY + Math.sin(time * .8 + particle.userData.phase) * .12;
+        particle.position.x = particle.userData.originX + Math.cos(time * .55 + particle.userData.phase) * .045;
+      }
+    });
   }
   renderer.render(scene, camera);
 }
 
 function init() {
-  if (!canvas || !window.WebGLRenderingContext) return;
+  if (!canvas) return;
+  const showFallback = () => {
+    canvas.hidden = true;
+    const fallback = document.createElement('div');
+    fallback.className = 'canvas-fallback';
+    fallback.setAttribute('role', 'img');
+    fallback.setAttribute('aria-label', 'VOLT three-flavor product lineup');
+    fallback.innerHTML = '<div class="fallback-can fallback-berry"><span>V/ LT</span><small>BERRY BLAST</small></div><div class="fallback-can fallback-pink"><span>V/ LT</span><small>PINK CITRUS</small></div><div class="fallback-can fallback-citrus"><span>V/ LT</span><small>CITRUS CHARGE</small></div>';
+    canvas.parentElement.appendChild(fallback);
+  };
+  if (!window.WebGLRenderingContext) { showFallback(); return; }
   try {
     renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
@@ -171,7 +197,7 @@ function init() {
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(34, 1, .1, 100);
     camera.position.set(0, .25, 8.9);
-    scene.add(new THREE.HemisphereLight('#ffeaff', '#24132d', 2.1));
+    scene.add(new THREE.HemisphereLight('#ffeaff', '#24132d', 1.8));
     const keyLight = new THREE.DirectionalLight('#fff1f8', 4.3);
     keyLight.position.set(-3, 5, 6);
     scene.add(keyLight);
@@ -181,6 +207,9 @@ function init() {
     const frontLight = new THREE.PointLight('#ff78c5', 38, 12);
     frontLight.position.set(0, 1, 4);
     scene.add(frontLight);
+    const orangeRim = new THREE.DirectionalLight('#ff963e', 2.4);
+    orangeRim.position.set(-4, -1, -2);
+    scene.add(orangeRim);
     rings = new THREE.Group();
     scene.add(rings);
     [[2.5, .24, '#ff79d1'], [2.9, .18, '#c79aff']].forEach(([radius, opacity, color], index) => {
@@ -193,13 +222,19 @@ function init() {
       rings.add(ring);
     });
     const particleMaterial = new THREE.MeshBasicMaterial({ color: '#ffd2f1', transparent: true, opacity: .7 });
-    for (let i = 0; i < 34; i++) {
+    const particleData = [];
+    for (let i = 0; i < 56; i++) {
       const particle = new THREE.Mesh(new THREE.SphereGeometry(.014, 8, 8), particleMaterial);
       const angle = Math.random() * Math.PI * 2;
       const radius = 1.6 + Math.random() * 2;
       particle.position.set(Math.cos(angle) * radius, (Math.random() - .5) * 4, Math.sin(angle) * radius * .48);
+      particle.userData.phase = Math.random() * Math.PI * 2;
+      particle.userData.originY = particle.position.y;
+      particle.userData.originX = particle.position.x;
+      particleData.push(particle);
       rings.add(particle);
     }
+    rings.userData.particles = particleData;
     cans = [
       makeCan('berry', -1.38, .78, -.35),
       makeCan('pink', 0, 1.03, .45),
@@ -240,8 +275,7 @@ function init() {
     animate();
   } catch (error) {
     console.error('VOLT 3D failed to initialize:', error);
-    canvas.setAttribute('aria-label', '3D preview unavailable. Check WebGL support and your internet connection.');
-    canvas.style.display = 'none';
+    showFallback();
   }
 }
 
@@ -278,7 +312,8 @@ if ('IntersectionObserver' in window) {
 
 document.querySelectorAll('a[href^="#"]').forEach(link => {
   link.addEventListener('click', event => {
-    const targetElement = document.querySelector(link.getAttribute('href'));
+    const href = link.getAttribute('href');
+    const targetElement = href && href.length > 1 ? document.querySelector(href) : null;
     if (targetElement) {
       event.preventDefault();
       targetElement.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
