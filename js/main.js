@@ -327,3 +327,29 @@ window.addEventListener('pagehide', () => {
 });
 
 init();
+
+
+// Reveal cinematic chapters and apply gentle scroll parallax to their backdrops.
+if ('IntersectionObserver' in window && !reduceMotion) {
+  const filmScenes = [...document.querySelectorAll('.film-scene')];
+  const filmObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      entry.target.classList.toggle('is-visible', entry.isIntersecting);
+    });
+  }, { threshold: 0.28 });
+  filmScenes.forEach(sceneElement => filmObserver.observe(sceneElement));
+  const updateFilmParallax = () => {
+    filmScenes.forEach(sceneElement => {
+      const rect = sceneElement.getBoundingClientRect();
+      const progress = (window.innerHeight - rect.top) / (window.innerHeight + rect.height);
+      const image = sceneElement.querySelector('.film-image');
+      if (image && rect.bottom > 0 && rect.top < window.innerHeight) {
+        image.style.backgroundPosition = 'center ' + (45 + Math.max(-1, Math.min(1, progress - 0.5)) * 12) + '%';
+      }
+    });
+  };
+  window.addEventListener('scroll', updateFilmParallax, { passive: true });
+  updateFilmParallax();
+} else {
+  document.querySelectorAll('.film-scene').forEach(sceneElement => sceneElement.classList.add('is-visible'));
+}
