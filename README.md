@@ -45,3 +45,6 @@ VOLT is a fictional concept brand. Replace placeholder copy and artwork, validat
 - Source-level checks verified the three flavor buttons, internal section anchors, reduced-motion hooks, renderer cleanup, and the CSS fallback selectors.
 - The deployed site still needs a real-browser pass for visual layout, network asset loading, and browser console errors. The connected GitHub tool does not provide an interactive browser session.
 - Three.js is loaded as an ES module from jsDelivr, and the font and photographic lifestyle assets are external resources; those require an internet connection.
+
+## Also in this repo: Sling Smash (Roblox game)
+[`roblox/sling-smash/`](roblox/sling-smash/) contains a Roblox slingshot launch-and-smash game. Download [`SlingSmash.rbxlx`](roblox/sling-smash/SlingSmash.rbxlx), open it in Roblox Studio, and press Play. See its [README](roblox/sling-smash/README.md) for controls and details.

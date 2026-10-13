@@ -1,0 +1,5508 @@
+<roblox version="4">
+  <Item class="Lighting" referent="0">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <token name="Technology">3</token>
+    </Properties>
+  </Item>
+  <Item class="Players" referent="1">
+    <Properties>
+      <string name="Name">Players</string>
+      <bool name="CharacterAutoLoads">false</bool>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="2">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="3">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[--[[
+	Sling Smash - shared configuration.
+
+	Every tunable number in the game lives here so it can be balanced without
+	touching gameplay code. Both the server and the client require this module.
+]]
+
+local Config = {}
+
+Config.GameName = "SLING SMASH"
+Config.DataStoreName = "SlingSmash_PlayerData_v1"
+Config.AutosaveInterval = 120
+
+--------------------------------------------------------------------------------
+-- World layout
+--------------------------------------------------------------------------------
+
+Config.GroundY = 0
+Config.Forward = Vector3.new(0, 0, -1) -- launch direction (down the lane)
+Config.Right = Vector3.new(1, 0, 0)
+Config.LaneWidth = 80
+Config.LaneLength = 3000
+Config.LobbySpawn = Vector3.new(0, 0.5, 70)
+Config.ReturnPoint = Vector3.new(0, 4, 32)
+
+-- The slingshot stands at the origin and fires towards Config.Forward.
+Config.SlingshotPosition = Vector3.new(0, 0, 0)
+Config.SlingshotArmTip = 12.8 -- height of the band anchor points
+Config.SlingshotArmSpread = 2.96 -- half distance between the two arm tips
+Config.PouchHeight = 11 -- character height while sitting in the pouch
+Config.PouchRestOffset = 3 -- studs behind the slingshot at 0% power
+Config.PouchPullDistance = 8 -- extra studs pulled back at 100% power
+
+Config.BlockSize = 4
+Config.CourseSeed = 1337
+Config.CourseStart = 50
+
+Config.Zones = {
+	{
+		Name = "Green Meadows",
+		EndsAt = 550,
+		ValueMult = 1,
+		GroundA = Color3.fromRGB(112, 208, 72),
+		GroundB = Color3.fromRGB(90, 184, 58),
+		Outer = Color3.fromRGB(78, 162, 54),
+		BlockMaterial = Enum.Material.SmoothPlastic,
+		BlockColors = {
+			Color3.fromRGB(198, 98, 66),
+			Color3.fromRGB(172, 80, 56),
+			Color3.fromRGB(216, 132, 88),
+			Color3.fromRGB(150, 104, 72),
+		},
+	},
+	{
+		Name = "Sky City",
+		EndsAt = 1250,
+		ValueMult = 2.5,
+		GroundA = Color3.fromRGB(150, 196, 236),
+		GroundB = Color3.fromRGB(126, 176, 224),
+		Outer = Color3.fromRGB(104, 150, 204),
+		BlockMaterial = Enum.Material.SmoothPlastic,
+		BlockColors = {
+			Color3.fromRGB(96, 146, 236),
+			Color3.fromRGB(142, 184, 250),
+			Color3.fromRGB(226, 234, 255),
+			Color3.fromRGB(70, 112, 210),
+		},
+	},
+	{
+		Name = "Neon Grid",
+		EndsAt = 2050,
+		ValueMult = 6,
+		GroundA = Color3.fromRGB(26, 30, 42),
+		GroundB = Color3.fromRGB(34, 40, 56),
+		Outer = Color3.fromRGB(18, 20, 30),
+		BlockMaterial = Enum.Material.Neon,
+		BlockColors = {
+			Color3.fromRGB(60, 255, 130),
+			Color3.fromRGB(0, 210, 255),
+			Color3.fromRGB(190, 90, 255),
+			Color3.fromRGB(255, 70, 190),
+		},
+	},
+	{
+		Name = "Candy Peaks",
+		EndsAt = math.huge,
+		ValueMult = 15,
+		GroundA = Color3.fromRGB(255, 186, 222),
+		GroundB = Color3.fromRGB(255, 160, 206),
+		Outer = Color3.fromRGB(236, 136, 188),
+		BlockMaterial = Enum.Material.SmoothPlastic,
+		BlockColors = {
+			Color3.fromRGB(255, 120, 190),
+			Color3.fromRGB(186, 140, 255),
+			Color3.fromRGB(130, 236, 206),
+			Color3.fromRGB(255, 236, 140),
+		},
+	},
+}
+
+--------------------------------------------------------------------------------
+-- Smashing, combos and coins
+--------------------------------------------------------------------------------
+
+Config.Blocks = {
+	Block = { Value = 10, Slowdown = 0.035 },
+	Gold = { Value = 150, Slowdown = 0.02 },
+	TNT = { Value = 25, Slowdown = 0, BlastRadius = 13, Boost = 22, Lift = 32 },
+}
+
+Config.CritChance = 0.08
+Config.CritMultiplier = 3
+Config.ComboStep = 6 -- smashes in a chain needed for each +1 multiplier
+Config.BaseComboWindow = 1.0
+Config.BaseMaxComboMult = 5
+Config.StarValue = 300
+Config.StarRadius = 3.5
+Config.RingRadius = 7
+Config.RingBoost = 35
+Config.RingLift = 28
+Config.CoinsPerStud = 2
+
+--------------------------------------------------------------------------------
+-- Flight physics (custom, simulated on the client)
+--------------------------------------------------------------------------------
+
+Config.Flight = {
+	BaseSpeed = 95, -- launch speed at 100% power with no upgrades
+	MinPower = 0.3, -- a quick tap still launches at 30%
+	LaunchAngle = 24, -- degrees above the horizon
+	ChargeTime = 1.3, -- seconds to charge from 0% to 100%
+	Gravity = 70,
+	AirDrag = 0.05, -- fraction of speed lost per second in the air
+	GroundDecel = 40, -- studs/s^2 lost while sliding
+	GroundDrag = 0.5, -- extra fraction of speed lost per second while sliding
+	Bounce = 0.45, -- vertical speed kept on a bounce
+	BounceKeep = 0.88, -- horizontal speed kept on a bounce
+	MinBounceSpeed = 14,
+	StopSpeed = 5,
+	BodyHeight = 1.3, -- root part height above ground while sliding
+	SteerAccel = 60,
+	MaxSideSpeed = 40,
+	SideDamping = 2,
+	MaxFlightTime = 90,
+}
+
+--------------------------------------------------------------------------------
+-- Upgrade tree (hex grid, axial coordinates, "Start" sits at 0,0)
+--------------------------------------------------------------------------------
+
+Config.Roman = { "I", "II", "III", "IV", "V", "VI", "VII", "VIII" }
+
+Config.StartNode = {
+	Id = "Start",
+	Name = "Start",
+	Icon = "🎯",
+	Q = 0,
+	R = 0,
+}
+
+Config.Branches = {
+	{
+		Key = "LaunchPower",
+		Name = "Launch Power",
+		Icon = "🚀",
+		Description = "+20% launch speed per level.",
+		Tiers = 5,
+		Origin = { 0, 0 },
+		Dir = { 1, -1 },
+		Requires = "Start",
+		Costs = { 100, 500, 1800, 6000, 20000 },
+	},
+	{
+		Key = "HangTime",
+		Name = "Hang Time",
+		Icon = "🎈",
+		Description = "-12% gravity per level. Stay in the air longer!",
+		Tiers = 3,
+		Origin = { 0, 0 },
+		Dir = { 0, -1 },
+		Requires = "Start",
+		Costs = { 250, 1500, 8000 },
+	},
+	{
+		Key = "AirControl",
+		Name = "Air Control",
+		Icon = "💨",
+		Description = "+35% steering strength per level.",
+		Tiers = 3,
+		Origin = { 0, 0 },
+		Dir = { -1, 0 },
+		Requires = "Start",
+		Costs = { 150, 900, 4000 },
+	},
+	{
+		Key = "ComboTime",
+		Name = "Combo Time",
+		Icon = "🔥",
+		Description = "+0.3s to keep your combo alive per level.",
+		Tiers = 5,
+		Origin = { 0, 0 },
+		Dir = { -1, 1 },
+		Requires = "Start",
+		Costs = { 200, 800, 2500, 7500, 22000 },
+	},
+	{
+		Key = "CoinBonus",
+		Name = "Coin Bonus",
+		Icon = "💰",
+		Description = "+25% coins from everything per level.",
+		Tiers = 6,
+		Origin = { 0, 0 },
+		Dir = { 0, 1 },
+		Requires = "Start",
+		Costs = { 150, 600, 2000, 6500, 18000, 50000 },
+	},
+	{
+		Key = "SmashPower",
+		Name = "Smash Power",
+		Icon = "💥",
+		Description = "+20% smash coins and -12% slowdown per level.",
+		Tiers = 6,
+		Origin = { 0, 0 },
+		Dir = { 1, 0 },
+		Requires = "Start",
+		Costs = { 120, 500, 1600, 5000, 15000, 45000 },
+	},
+	{
+		Key = "WreckingBall",
+		Name = "Wrecking Ball",
+		Icon = "💣",
+		Description = "+1.5 studs smash radius per level.",
+		Tiers = 3,
+		Origin = { 2, 0 },
+		Dir = { 1, -1 },
+		Requires = "SmashPower2",
+		Costs = { 3000, 12000, 40000 },
+	},
+	{
+		Key = "ComboKing",
+		Name = "Combo King",
+		Icon = "👑",
+		Description = "+3 max combo multiplier per level.",
+		Tiers = 2,
+		Origin = { -3, 3 },
+		Dir = { -1, 0 },
+		Requires = "ComboTime3",
+		Costs = { 10000, 60000 },
+	},
+}
+
+Config.Nodes = {}
+Config.NodesById = {}
+
+for _, branch in Config.Branches do
+	for tier = 1, branch.Tiers do
+		local node = {
+			Id = branch.Key .. tier,
+			Branch = branch.Key,
+			Tier = tier,
+			Name = branch.Name .. " " .. Config.Roman[tier],
+			Icon = branch.Icon,
+			Description = branch.Description,
+			Cost = branch.Costs[tier],
+			Requires = if tier == 1 then branch.Requires else branch.Key .. (tier - 1),
+			Q = branch.Origin[1] + branch.Dir[1] * tier,
+			R = branch.Origin[2] + branch.Dir[2] * tier,
+		}
+		table.insert(Config.Nodes, node)
+		Config.NodesById[node.Id] = node
+	end
+end
+
+-- Returns { [branchKey] = level } for a set of owned node ids.
+function Config.GetLevels(upgrades)
+	local levels = {}
+	for _, branch in Config.Branches do
+		local level = 0
+		for tier = 1, branch.Tiers do
+			if upgrades and upgrades[branch.Key .. tier] then
+				level = tier
+			else
+				break
+			end
+		end
+		levels[branch.Key] = level
+	end
+	return levels
+end
+
+function Config.RebirthMultiplier(rebirths)
+	return 1 + Config.Rebirth.BonusPerRebirth * (rebirths or 0)
+end
+
+function Config.RebirthCost(rebirths)
+	return math.floor(Config.Rebirth.BaseCost * Config.Rebirth.CostGrowth ^ (rebirths or 0))
+end
+
+-- Every gameplay stat derived from upgrades + rebirths.
+function Config.ComputeStats(upgrades, rebirths)
+	local levels = Config.GetLevels(upgrades)
+	local flight = Config.Flight
+	return {
+		Levels = levels,
+		LaunchSpeed = flight.BaseSpeed * (1 + 0.2 * levels.LaunchPower),
+		Gravity = flight.Gravity * (1 - 0.12 * levels.HangTime),
+		Steer = flight.SteerAccel * (1 + 0.35 * levels.AirControl),
+		ComboWindow = Config.BaseComboWindow + 0.3 * levels.ComboTime,
+		MaxComboMult = Config.BaseMaxComboMult + 3 * levels.ComboKing,
+		SmashCoinMult = 1 + 0.2 * levels.SmashPower,
+		SmashSlow = math.max(0.25, 1 - 0.12 * levels.SmashPower),
+		HitRadius = 4 + 1.5 * levels.WreckingBall,
+		CoinMult = (1 + 0.25 * levels.CoinBonus) * Config.RebirthMultiplier(rebirths),
+	}
+end
+
+function Config.ComboMultiplier(combo, maxMult)
+	if combo <= 0 then
+		return 1
+	end
+	return math.min(maxMult, 1 + math.floor(combo / Config.ComboStep))
+end
+
+-- Highest coin value a single smashed block can have before multipliers.
+function Config.MaxBlockValue()
+	local best = 0
+	for _, block in Config.Blocks do
+		best = math.max(best, block.Value)
+	end
+	local zoneMult = 0
+	for _, zone in Config.Zones do
+		zoneMult = math.max(zoneMult, zone.ValueMult)
+	end
+	return best * zoneMult
+end
+
+--------------------------------------------------------------------------------
+-- Rebirth, trails, settings, sounds
+--------------------------------------------------------------------------------
+
+Config.Rebirth = {
+	BaseCost = 100000,
+	CostGrowth = 2,
+	BonusPerRebirth = 0.5, -- +50% coins per rebirth
+}
+
+Config.Trails = {
+	{ Id = "None", Name = "No Trail", Price = 0 },
+	{
+		Id = "Ocean",
+		Name = "Ocean",
+		Price = 2500,
+		Colors = { Color3.fromRGB(0, 170, 255), Color3.fromRGB(0, 255, 210) },
+	},
+	{
+		Id = "Fire",
+		Name = "Fire",
+		Price = 8000,
+		Colors = { Color3.fromRGB(255, 220, 60), Color3.fromRGB(255, 70, 30) },
+	},
+	{
+		Id = "Toxic",
+		Name = "Toxic",
+		Price = 20000,
+		Colors = { Color3.fromRGB(190, 255, 60), Color3.fromRGB(40, 200, 80) },
+	},
+	{
+		Id = "Galaxy",
+		Name = "Galaxy",
+		Price = 60000,
+		Colors = { Color3.fromRGB(120, 60, 255), Color3.fromRGB(255, 80, 200) },
+	},
+	{
+		Id = "Rainbow",
+		Name = "Rainbow",
+		Price = 150000,
+		Colors = {
+			Color3.fromRGB(255, 60, 60),
+			Color3.fromRGB(255, 200, 40),
+			Color3.fromRGB(60, 230, 90),
+			Color3.fromRGB(40, 200, 255),
+			Color3.fromRGB(170, 80, 255),
+		},
+	},
+}
+
+Config.TrailsById = {}
+for _, trail in Config.Trails do
+	Config.TrailsById[trail.Id] = trail
+end
+
+Config.DefaultSettings = {
+	Music = true,
+	SFX = true,
+	CameraShake = true,
+	SpeedLines = true,
+	Hints = true,
+}
+
+Config.SettingsOrder = { "Music", "SFX", "CameraShake", "SpeedLines", "Hints" }
+
+Config.SettingLabels = {
+	Music = "Music",
+	SFX = "SFX",
+	CameraShake = "Camera Shake",
+	SpeedLines = "Speed Lines",
+	Hints = "Hints",
+}
+
+-- Built-in engine sounds work in every place without uploading anything.
+-- Paste an "rbxassetid://<id>" into Music to add background music.
+Config.Sounds = {
+	Music = "",
+	Launch = "rbxasset://sounds/action_jump.mp3",
+	Wind = "rbxasset://sounds/action_falling.mp3",
+	Smash = "rbxasset://sounds/action_jump_land.mp3",
+	Coin = "rbxasset://sounds/electronicpingshort.wav",
+	Click = "rbxasset://sounds/electronicpingshort.wav",
+}
+
+return Config
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">CourseLayout</string>
+          <string name="Source"><![CDATA[--[[
+	Deterministic obstacle course layout.
+
+	The client builds its own copy of the course from this data (so every player
+	gets a fresh, smashable course for each launch) and the server uses the same
+	data to sanity-check launch reports.
+]]
+
+local Config = require(script.Parent.Config)
+
+local CourseLayout = {}
+
+local cached = nil
+
+function CourseLayout.ZoneIndexAt(distance: number): number
+	for index, zone in Config.Zones do
+		if distance < zone.EndsAt then
+			return index
+		end
+	end
+	return #Config.Zones
+end
+
+local function pickKind(rng: Random): string
+	local roll = rng:NextNumber()
+	if roll < 0.045 then
+		return "TNT"
+	elseif roll < 0.075 then
+		return "Gold"
+	end
+	return "Block"
+end
+
+function CourseLayout.Get()
+	if cached then
+		return cached
+	end
+
+	local rng = Random.new(Config.CourseSeed)
+	local size = Config.BlockSize
+	local halfLane = Config.LaneWidth / 2 - 2
+	local blocks = {}
+	local stars = {}
+	local rings = {}
+
+	-- x is the block centre, level counts blocks up from the ground.
+	local function addBlock(x: number, level: number, distance: number, kind: string, zone: number, colorIndex: number)
+		table.insert(blocks, {
+			Id = #blocks + 1,
+			Position = Vector3.new(x, Config.GroundY + size / 2 + level * size, -distance),
+			Kind = kind,
+			Zone = zone,
+			ColorIndex = colorIndex,
+		})
+	end
+
+	local function wall(cx: number, distance: number, width: number, height: number, baseLevel: number, zone: number)
+		local colorIndex = rng:NextInteger(1, 4)
+		for i = 0, width - 1 do
+			for j = 0, height - 1 do
+				addBlock(cx + (i - (width - 1) / 2) * size, baseLevel + j, distance, pickKind(rng), zone, colorIndex)
+			end
+		end
+	end
+
+	local function tower(cx: number, distance: number, height: number, zone: number)
+		local colorIndex = rng:NextInteger(1, 4)
+		for i = 0, 1 do
+			for k = 0, 1 do
+				for j = 0, height - 1 do
+					addBlock(cx + (i - 0.5) * size, j, distance + k * size, pickKind(rng), zone, colorIndex)
+				end
+			end
+		end
+	end
+
+	local function pyramid(cx: number, distance: number, base: number, zone: number)
+		local colorIndex = rng:NextInteger(1, 4)
+		for level = 0, base - 1 do
+			local count = base - level
+			for i = 0, count - 1 do
+				addBlock(cx + (i - (count - 1) / 2) * size, level, distance, pickKind(rng), zone, colorIndex)
+			end
+		end
+	end
+
+	-- Picks a centre so a structure of halfWidth fits between minX and maxX.
+	local function centerIn(minX: number, maxX: number, halfWidth: number): number
+		local low, high = minX + halfWidth, maxX - halfWidth
+		if low >= high then
+			return (minX + maxX) / 2
+		end
+		return rng:NextNumber(low, high)
+	end
+
+	-- The first wall sits right in front of the slingshot so even a weak
+	-- first launch smashes something.
+	wall(0, Config.CourseStart, 5, 5, 0, 1)
+
+	local distance = Config.CourseStart + 45
+	local row = 0
+	while distance < Config.LaneLength - 60 do
+		row += 1
+		local zone = CourseLayout.ZoneIndexAt(distance)
+
+		if row % 9 == 0 then
+			-- Full-width wall: you can't steer around this one.
+			local width = math.floor((Config.LaneWidth - 4) / size)
+			wall(0, distance, width, rng:NextInteger(2, 3), 0, zone)
+		else
+			local count = if rng:NextNumber() < 0.55 then 2 else 1
+			for n = 1, count do
+				local minX, maxX = -halfLane, halfLane
+				if count == 2 then
+					if n == 1 then
+						maxX = -3
+					else
+						minX = 3
+					end
+				end
+
+				local roll = rng:NextNumber()
+				if roll < 0.5 then
+					local width = rng:NextInteger(3, 7)
+					local height = rng:NextInteger(3, 6)
+					wall(centerIn(minX, maxX, width * size / 2), distance, width, height, 0, zone)
+				elseif roll < 0.78 then
+					tower(centerIn(minX, maxX, size), distance, rng:NextInteger(6, 12), zone)
+				else
+					local base = rng:NextInteger(3, 5)
+					pyramid(centerIn(minX, maxX, base * size / 2), distance, base, zone)
+				end
+			end
+		end
+
+		-- Floating walls reward high launches later in the course.
+		if zone >= 2 and rng:NextNumber() < 0.25 then
+			local width = rng:NextInteger(3, 6)
+			wall(
+				centerIn(-halfLane, halfLane, width * size / 2),
+				distance + 20,
+				width,
+				2,
+				rng:NextInteger(6, 13),
+				zone
+			)
+		end
+
+		if rng:NextNumber() < 0.6 then
+			table.insert(stars, {
+				Id = #stars + 1,
+				Position = Vector3.new(
+					rng:NextNumber(-halfLane + 10, halfLane - 10),
+					Config.GroundY + rng:NextNumber(6, 34),
+					-(distance + rng:NextNumber(10, 25))
+				),
+				Zone = zone,
+			})
+		end
+
+		if rng:NextNumber() < 0.3 then
+			table.insert(rings, {
+				Id = #rings + 1,
+				Position = Vector3.new(rng:NextNumber(-18, 18), Config.GroundY + rng:NextNumber(6, 22), -(distance + 28)),
+				Zone = zone,
+			})
+		end
+
+		distance += rng:NextNumber(40, 60)
+	end
+
+	cached = {
+		Blocks = blocks,
+		Stars = stars,
+		Rings = rings,
+		TotalBlocks = #blocks,
+	}
+	return cached
+end
+
+return CourseLayout
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
+          <string name="Name">Format</string>
+          <string name="Source"><![CDATA[--[[
+	Number formatting helpers shared by the server and the UI.
+]]
+
+local Format = {}
+
+local SUFFIXES = { "K", "M", "B", "T", "Qa", "Qi" }
+
+-- 7880 -> "7,880"
+function Format.Commas(value: number): string
+	local whole = math.floor(math.abs(value))
+	local digits = tostring(whole)
+	local grouped = digits:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+	if grouped:sub(1, 1) == "," then
+		grouped = grouped:sub(2)
+	end
+	return (if value < 0 then "-" else "") .. grouped
+end
+
+-- 1400 -> "1.4K", 25000 -> "25K", 999 -> "999"
+function Format.Short(value: number): string
+	local abs = math.abs(value)
+	if abs < 1000 then
+		return (if value < 0 then "-" else "") .. tostring(math.floor(abs))
+	end
+	local index = 0
+	while abs >= 1000 and index < #SUFFIXES do
+		abs /= 1000
+		index += 1
+	end
+	local text
+	if abs >= 100 then
+		text = tostring(math.floor(abs))
+	else
+		text = string.format("%.1f", math.floor(abs * 10) / 10)
+		text = text:gsub("%.0$", "")
+	end
+	return (if value < 0 then "-" else "") .. text .. SUFFIXES[index]
+end
+
+-- Uses commas below 100K and the short form above it.
+function Format.Coins(value: number): string
+	if math.abs(value) < 100000 then
+		return Format.Commas(value)
+	end
+	return Format.Short(value)
+end
+
+return Format
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="7">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Script" referent="8">
+      <Properties>
+        <string name="Name">Server</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--[[
+	Sling Smash - server entry point.
+
+	Builds the world, owns player data (coins, upgrades, trails, settings),
+	and validates launch results reported by clients.
+]]
+
+local PhysicsService = game:GetService("PhysicsService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local CourseLayout = require(Shared:WaitForChild("CourseLayout"))
+
+local DataService = require(script.DataService)
+local WorldBuilder = require(script.WorldBuilder)
+
+Players.CharacterAutoLoads = false
+
+--------------------------------------------------------------------------------
+-- Collision groups
+--   Players: walking characters (don't push each other around the slingshot)
+--   Flyer:   a character mid-launch (set by its own client; passes through all)
+--   Debris:  smashed blocks flying around (never hit characters)
+--------------------------------------------------------------------------------
+
+for _, name in { "Players", "Flyer", "Debris" } do
+	if not PhysicsService:IsCollisionGroupRegistered(name) then
+		PhysicsService:RegisterCollisionGroup(name)
+	end
+end
+PhysicsService:CollisionGroupSetCollidable("Players", "Players", false)
+PhysicsService:CollisionGroupSetCollidable("Flyer", "Default", false)
+PhysicsService:CollisionGroupSetCollidable("Flyer", "Players", false)
+PhysicsService:CollisionGroupSetCollidable("Flyer", "Flyer", false)
+PhysicsService:CollisionGroupSetCollidable("Flyer", "Debris", false)
+PhysicsService:CollisionGroupSetCollidable("Debris", "Players", false)
+
+--------------------------------------------------------------------------------
+-- Remotes
+--------------------------------------------------------------------------------
+
+local remotes = Instance.new("Folder")
+remotes.Name = "Remotes"
+
+local function remote(className: string, name: string): any
+	local instance = Instance.new(className)
+	instance.Name = name
+	instance.Parent = remotes
+	return instance
+end
+
+local GetData = remote("RemoteFunction", "GetData") :: RemoteFunction
+local DataChanged = remote("RemoteEvent", "DataChanged") :: RemoteEvent
+local StartLaunch = remote("RemoteFunction", "StartLaunch") :: RemoteFunction
+local FinishLaunch = remote("RemoteFunction", "FinishLaunch") :: RemoteFunction
+local BuyUpgrade = remote("RemoteFunction", "BuyUpgrade") :: RemoteFunction
+local Rebirth = remote("RemoteFunction", "Rebirth") :: RemoteFunction
+local BuyTrail = remote("RemoteFunction", "BuyTrail") :: RemoteFunction
+local EquipTrail = remote("RemoteFunction", "EquipTrail") :: RemoteFunction
+local UpdateSetting = remote("RemoteEvent", "UpdateSetting") :: RemoteEvent
+
+remotes.Parent = ReplicatedStorage
+
+--------------------------------------------------------------------------------
+-- World
+--------------------------------------------------------------------------------
+
+WorldBuilder.Build()
+
+local layout = CourseLayout.Get()
+
+--------------------------------------------------------------------------------
+-- Characters + trails
+--------------------------------------------------------------------------------
+
+local function applyTrail(player: Player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return
+	end
+	for _, child in root:GetChildren() do
+		if child.Name == "SlingTrail" or child.Name == "SlingTrailA0" or child.Name == "SlingTrailA1" then
+			child:Destroy()
+		end
+	end
+
+	local data = DataService.Get(player)
+	local trailInfo = data and Config.TrailsById[data.EquippedTrail]
+	if not trailInfo or not trailInfo.Colors then
+		return
+	end
+
+	-- Attachments sit shoulder-to-shoulder so the ribbon is wide whether the
+	-- character is standing or flying superman-style.
+	local a0 = Instance.new("Attachment")
+	a0.Name = "SlingTrailA0"
+	a0.Position = Vector3.new(-1.2, 0, 0)
+	a0.Parent = root
+	local a1 = Instance.new("Attachment")
+	a1.Name = "SlingTrailA1"
+	a1.Position = Vector3.new(1.2, 0, 0)
+	a1.Parent = root
+
+	local keypoints = {}
+	local colors = trailInfo.Colors
+	for i, color in colors do
+		local time = if #colors == 1 then 0 else (i - 1) / (#colors - 1)
+		table.insert(keypoints, ColorSequenceKeypoint.new(time, color))
+	end
+	if #keypoints == 1 then
+		table.insert(keypoints, ColorSequenceKeypoint.new(1, colors[1]))
+	end
+
+	local trail = Instance.new("Trail")
+	trail.Name = "SlingTrail"
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Color = ColorSequence.new(keypoints)
+	trail.Lifetime = 0.6
+	trail.MinLength = 0.1
+	trail.FaceCamera = true
+	trail.LightEmission = 0.6
+	trail.Transparency = NumberSequence.new(0.1, 1)
+	trail.WidthScale = NumberSequence.new(1, 0.2)
+	trail.Parent = root
+end
+
+local function setCollisionGroup(instance: Instance)
+	if instance:IsA("BasePart") then
+		instance.CollisionGroup = "Players"
+	end
+end
+
+local function spawnCharacter(player: Player)
+	if player.Parent ~= Players then
+		return
+	end
+	local ok, err = pcall(function()
+		player:LoadCharacterAsync()
+	end)
+	if not ok then
+		warn("[SlingSmash] Could not spawn", player.Name, err)
+	end
+end
+
+local function onCharacterAdded(player: Player, character: Model)
+	for _, descendant in character:GetDescendants() do
+		setCollisionGroup(descendant)
+	end
+	character.DescendantAdded:Connect(setCollisionGroup)
+
+	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
+	if humanoid then
+		humanoid.Died:Connect(function()
+			task.wait(2.5)
+			spawnCharacter(player)
+		end)
+	end
+
+	character:WaitForChild("HumanoidRootPart", 10)
+	applyTrail(player)
+end
+
+DataService.OnChanged(function(player, data)
+	DataChanged:FireClient(player, data)
+end)
+
+local function onPlayerAdded(player: Player)
+	player.CharacterAdded:Connect(function(character)
+		onCharacterAdded(player, character)
+	end)
+
+	DataService.Load(player)
+	spawnCharacter(player)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, player in Players:GetPlayers() do
+	task.spawn(onPlayerAdded, player)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	DataService.Release(player)
+end)
+
+game:BindToClose(function()
+	DataService.SaveAll()
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(Config.AutosaveInterval)
+		for _, player in Players:GetPlayers() do
+			task.spawn(DataService.Save, player)
+		end
+	end
+end)
+
+--------------------------------------------------------------------------------
+-- Launch validation
+--------------------------------------------------------------------------------
+
+local sessions = {} -- [Player] = { Id, StartedAt, Active }
+
+Players.PlayerRemoving:Connect(function(player)
+	sessions[player] = nil
+end)
+
+-- tonumber that also rejects NaN and infinities from untrusted input.
+local function safeNumber(value: any): number
+	local n = tonumber(value)
+	if n == nil or n ~= n or n == math.huge or n == -math.huge then
+		return 0
+	end
+	return n
+end
+
+GetData.OnServerInvoke = function(player)
+	return DataService.WaitFor(player, 20)
+end
+
+StartLaunch.OnServerInvoke = function(player)
+	if not DataService.Get(player) then
+		return nil
+	end
+	local session = sessions[player] or { Id = 0 }
+	session.Id += 1
+	session.StartedAt = os.clock()
+	session.Active = true
+	sessions[player] = session
+	return session.Id
+end
+
+FinishLaunch.OnServerInvoke = function(player, launchId, report)
+	local data = DataService.Get(player)
+	local session = sessions[player]
+	if not data or not session or not session.Active or session.Id ~= launchId or type(report) ~= "table" then
+		return nil
+	end
+	session.Active = false
+
+	local elapsed = os.clock() - session.StartedAt
+	local stats = Config.ComputeStats(data.Upgrades, data.Rebirths)
+
+	-- Clamp every reported number to what is physically possible.
+	local maxDistance = math.min(Config.LaneLength + 20, elapsed * stats.LaunchSpeed * 2.5 + 40)
+	local distance = math.clamp(safeNumber(report.Distance), 0, maxDistance)
+	-- TNT chains can smash dozens at once, but never hundreds per second.
+	local maxSmashes = math.min(layout.TotalBlocks, math.floor(60 + elapsed * 30))
+	local smashes = math.clamp(math.floor(safeNumber(report.Smashes)), 0, maxSmashes)
+	local stars = math.clamp(math.floor(safeNumber(report.Stars)), 0, #layout.Stars)
+	local maxCombo = math.clamp(math.floor(safeNumber(report.MaxCombo)), 0, smashes)
+
+	local maxZoneMult = Config.Zones[#Config.Zones].ValueMult
+	local ceiling = (
+		smashes * Config.MaxBlockValue() * stats.SmashCoinMult * stats.MaxComboMult * Config.CritMultiplier
+		+ stars * Config.StarValue * maxZoneMult
+	) * stats.CoinMult
+	local runCoins = math.clamp(math.floor(safeNumber(report.RunCoins)), 0, math.floor(ceiling))
+	local distanceCoins = math.floor(distance * Config.CoinsPerStud * stats.CoinMult)
+	local earned = runCoins + distanceCoins
+
+	local newBest = distance > data.BestDistance
+	data.Coins += earned
+	if newBest then
+		data.BestDistance = math.floor(distance)
+	end
+	data.Stats.Launches += 1
+	data.Stats.TotalSmashes += smashes
+	data.Stats.TotalCoins += earned
+	data.Stats.TotalDistance += math.floor(distance)
+	data.Stats.StarsCollected += stars
+	data.Stats.BestCombo = math.max(data.Stats.BestCombo, maxCombo)
+	DataService.Changed(player)
+
+	return {
+		Earned = earned,
+		RunCoins = runCoins,
+		DistanceCoins = distanceCoins,
+		Distance = math.floor(distance),
+		Smashes = smashes,
+		MaxCombo = maxCombo,
+		Stars = stars,
+		NewBest = newBest,
+		Best = data.BestDistance,
+	}
+end
+
+--------------------------------------------------------------------------------
+-- Upgrades, rebirth, trails, settings
+--------------------------------------------------------------------------------
+
+BuyUpgrade.OnServerInvoke = function(player, nodeId)
+	local data = DataService.Get(player)
+	local node = type(nodeId) == "string" and Config.NodesById[nodeId]
+	if not data or not node then
+		return false, "Unknown upgrade"
+	end
+	if data.Upgrades[node.Id] then
+		return false, "Already owned"
+	end
+	if node.Requires ~= "Start" and not data.Upgrades[node.Requires] then
+		return false, "Unlock the previous upgrade first"
+	end
+	if data.Coins < node.Cost then
+		return false, "Not enough coins"
+	end
+	data.Coins -= node.Cost
+	data.Upgrades[node.Id] = true
+	DataService.Changed(player)
+	return true
+end
+
+Rebirth.OnServerInvoke = function(player)
+	local data = DataService.Get(player)
+	if not data then
+		return false, "Data not loaded"
+	end
+	local cost = Config.RebirthCost(data.Rebirths)
+	if data.Coins < cost then
+		return false, "Not enough coins"
+	end
+	data.Coins = 0
+	data.Upgrades = {}
+	data.Rebirths += 1
+	DataService.Changed(player)
+	return true
+end
+
+BuyTrail.OnServerInvoke = function(player, trailId)
+	local data = DataService.Get(player)
+	local trail = type(trailId) == "string" and Config.TrailsById[trailId]
+	if not data or not trail then
+		return false, "Unknown trail"
+	end
+	if data.Trails[trail.Id] then
+		return false, "Already owned"
+	end
+	if data.Coins < trail.Price then
+		return false, "Not enough coins"
+	end
+	data.Coins -= trail.Price
+	data.Trails[trail.Id] = true
+	data.EquippedTrail = trail.Id
+	DataService.Changed(player)
+	applyTrail(player)
+	return true
+end
+
+EquipTrail.OnServerInvoke = function(player, trailId)
+	local data = DataService.Get(player)
+	if not data or type(trailId) ~= "string" or not data.Trails[trailId] then
+		return false, "Trail not owned"
+	end
+	data.EquippedTrail = trailId
+	DataService.Changed(player)
+	applyTrail(player)
+	return true
+end
+
+UpdateSetting.OnServerEvent:Connect(function(player, key, value)
+	local data = DataService.Get(player)
+	if not data or type(key) ~= "string" or type(value) ~= "boolean" then
+		return
+	end
+	if Config.DefaultSettings[key] == nil then
+		return
+	end
+	data.Settings[key] = value
+end)
+
+print("[SlingSmash] Server ready -", layout.TotalBlocks, "blocks,", #layout.Stars, "stars,", #layout.Rings, "boost rings")
+]]></string>
+      </Properties>
+      <Item class="ModuleScript" referent="9">
+        <Properties>
+          <string name="Name">DataService</string>
+          <string name="Source"><![CDATA[--[[
+	Loads, caches and saves player data with DataStoreService.
+
+	In an unpublished place (or with Studio API access turned off) DataStores are
+	unavailable; the game still works, progress just isn't saved between sessions.
+]]
+
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local DataService = {}
+
+local profiles = {} -- [Player] = data table
+local canSave = {} -- [Player] = boolean
+local changedCallbacks = {}
+
+local store: DataStore? = nil
+do
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(Config.DataStoreName)
+	end)
+	if ok then
+		store = result
+	else
+		warn("[SlingSmash] DataStores unavailable, progress will not save:", result)
+	end
+end
+
+local function defaultData()
+	local settings = {}
+	for key, value in Config.DefaultSettings do
+		settings[key] = value
+	end
+	return {
+		Coins = 0,
+		BestDistance = 0,
+		Rebirths = 0,
+		Upgrades = {},
+		Trails = { None = true },
+		EquippedTrail = "None",
+		Settings = settings,
+		Stats = {
+			Launches = 0,
+			TotalSmashes = 0,
+			TotalCoins = 0,
+			TotalDistance = 0,
+			BestCombo = 0,
+			StarsCollected = 0,
+		},
+	}
+end
+
+-- Fills in any keys missing from saved data (e.g. after adding new features).
+local function reconcile(target, template)
+	for key, value in template do
+		if target[key] == nil then
+			if type(value) == "table" then
+				local copy = {}
+				reconcile(copy, value)
+				target[key] = copy
+			else
+				target[key] = value
+			end
+		elseif type(value) == "table" and type(target[key]) == "table" then
+			reconcile(target[key], value)
+		end
+	end
+end
+
+local function keyFor(player: Player): string
+	return "player_" .. player.UserId
+end
+
+local function updateLeaderstats(player: Player, data)
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if not leaderstats then
+		leaderstats = Instance.new("Folder")
+		leaderstats.Name = "leaderstats"
+		leaderstats.Parent = player
+	end
+	local coins = leaderstats:FindFirstChild("Coins") :: IntValue?
+	if not coins then
+		local value = Instance.new("IntValue")
+		value.Name = "Coins"
+		value.Parent = leaderstats
+		coins = value
+	end
+	local best = leaderstats:FindFirstChild("Best") :: IntValue?
+	if not best then
+		local value = Instance.new("IntValue")
+		value.Name = "Best"
+		value.Parent = leaderstats
+		best = value
+	end
+	if coins then
+		coins.Value = math.floor(data.Coins)
+	end
+	if best then
+		best.Value = math.floor(data.BestDistance)
+	end
+end
+
+function DataService.Load(player: Player)
+	local data = nil
+	local loaded = false
+
+	if store then
+		for attempt = 1, 3 do
+			local ok, result = pcall(function()
+				return (store :: DataStore):GetAsync(keyFor(player))
+			end)
+			if ok then
+				data = result
+				loaded = true
+				break
+			end
+			local message = tostring(result)
+			if message:find("StudioAccessToApisNotAllowed") or message:find("publish") or message:find("403") then
+				-- Unpublished place / API access disabled: stop trying for everyone.
+				warn("[SlingSmash] DataStores are disabled here, progress will not save. " .. message)
+				store = nil
+				break
+			end
+			warn(string.format("[SlingSmash] Load attempt %d failed for %s: %s", attempt, player.Name, message))
+			task.wait(1.5)
+		end
+	end
+
+	if type(data) ~= "table" then
+		data = defaultData()
+	else
+		reconcile(data, defaultData())
+	end
+
+	-- Only save if we actually read the store; never overwrite real data with defaults.
+	canSave[player] = store ~= nil and loaded
+
+	if player.Parent ~= Players then
+		return nil
+	end
+
+	profiles[player] = data
+	updateLeaderstats(player, data)
+	DataService.Changed(player)
+	return data
+end
+
+function DataService.Get(player: Player)
+	return profiles[player]
+end
+
+function DataService.WaitFor(player: Player, timeout: number?)
+	local deadline = os.clock() + (timeout or 20)
+	while not profiles[player] and player.Parent == Players and os.clock() < deadline do
+		task.wait(0.1)
+	end
+	return profiles[player]
+end
+
+function DataService.OnChanged(callback)
+	table.insert(changedCallbacks, callback)
+end
+
+-- Call after mutating a player's data so the client and leaderstats update.
+function DataService.Changed(player: Player)
+	local data = profiles[player]
+	if not data then
+		return
+	end
+	updateLeaderstats(player, data)
+	for _, callback in changedCallbacks do
+		task.spawn(callback, player, data)
+	end
+end
+
+function DataService.Save(player: Player)
+	local data = profiles[player]
+	if not data or not store or not canSave[player] then
+		return
+	end
+	local ok, err = pcall(function()
+		(store :: DataStore):UpdateAsync(keyFor(player), function()
+			return data
+		end)
+	end)
+	if not ok then
+		warn("[SlingSmash] Save failed for", player.Name, err)
+	end
+end
+
+function DataService.Release(player: Player)
+	DataService.Save(player)
+	profiles[player] = nil
+	canSave[player] = nil
+end
+
+-- Saves every loaded profile in parallel and yields until all are done.
+function DataService.SaveAll()
+	local pending = 0
+	for player in profiles do
+		pending += 1
+		task.spawn(function()
+			DataService.Save(player)
+			pending -= 1
+		end)
+	end
+	local deadline = os.clock() + 25
+	while pending > 0 and os.clock() < deadline do
+		task.wait(0.1)
+	end
+end
+
+return DataService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="10">
+        <Properties>
+          <string name="Name">WorldBuilder</string>
+          <string name="Source"><![CDATA[--[[
+	Builds the static world on the server: lobby, slingshot, the long launch
+	lane with its zones, decorations and lighting.
+
+	The smashable obstacles are NOT built here; each client builds its own copy
+	(see Client/Course) so smashing is instant and resets for every launch.
+]]
+
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local CourseLayout = require(ReplicatedStorage.Shared.CourseLayout)
+
+local WorldBuilder = {}
+
+local TILE = 40
+local GROUND_HALF_WIDTH = 120 -- checker tiles cover x = -120..120
+
+local function part(props): Part
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Material = Enum.Material.SmoothPlastic
+	for key, value in props do
+		(p :: any)[key] = value
+	end
+	return p
+end
+
+local function sign(parent: Instance, size: Vector3, cframe: CFrame, text: string, color: Color3, textColor: Color3?)
+	local board = part({
+		Name = "Sign",
+		Size = size,
+		CFrame = cframe,
+		Color = color,
+		Parent = parent,
+	})
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Back -- the +Z face, which faces the lobby
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 20
+	gui.LightInfluence = 0
+	gui.Parent = board
+
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.FredokaOne
+	label.Text = text
+	label.TextScaled = true
+	label.TextColor3 = textColor or Color3.new(1, 1, 1)
+	label.Parent = gui
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 4
+	stroke.Color = Color3.fromRGB(40, 24, 12)
+	stroke.Parent = label
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0.08, 0)
+	padding.PaddingBottom = UDim.new(0.08, 0)
+	padding.PaddingLeft = UDim.new(0.03, 0)
+	padding.PaddingRight = UDim.new(0.03, 0)
+	padding.Parent = label
+	return board
+end
+
+--------------------------------------------------------------------------------
+-- Ground
+--------------------------------------------------------------------------------
+
+local function buildGround(map: Folder)
+	local ground = Instance.new("Folder")
+	ground.Name = "Ground"
+	ground.Parent = map
+
+	local startZ = 160
+	local endZ = -(Config.LaneLength + 120)
+
+	local row = 0
+	local z = startZ
+	while z > endZ do
+		local centerZ = z - TILE / 2
+		local zone = Config.Zones[CourseLayout.ZoneIndexAt(math.max(0, -centerZ))]
+		local col = 0
+		for x = -GROUND_HALF_WIDTH, GROUND_HALF_WIDTH - TILE, TILE do
+			part({
+				Name = "Tile",
+				Size = Vector3.new(TILE, 2, TILE),
+				CFrame = CFrame.new(x + TILE / 2, Config.GroundY - 1, centerZ),
+				Color = if (row + col) % 2 == 0 then zone.GroundA else zone.GroundB,
+				Material = Enum.Material.Plastic,
+				Parent = ground,
+			})
+			col += 1
+		end
+		row += 1
+		z -= TILE
+	end
+
+	-- Wide side ground out to the horizon, split per zone (parts max out at 2048 studs).
+	local sideWidth = 900
+	local zoneStart = -startZ
+	for index, zone in Config.Zones do
+		local zoneEnd = math.min(zone.EndsAt, Config.LaneLength + 120)
+		if index == #Config.Zones then
+			zoneEnd = Config.LaneLength + 120
+		end
+		local length = zoneEnd - zoneStart
+		while length > 0 do
+			local segment = math.min(length, 2000)
+			local centerZ = -(zoneStart + segment / 2)
+			for _, side in { -1, 1 } do
+				part({
+					Name = "SideGround",
+					Size = Vector3.new(sideWidth, 2, segment),
+					CFrame = CFrame.new(side * (GROUND_HALF_WIDTH + sideWidth / 2), Config.GroundY - 1.05, centerZ),
+					Color = zone.Outer,
+					Material = Enum.Material.Plastic,
+					Parent = ground,
+				})
+			end
+			zoneStart += segment
+			length -= segment
+		end
+	end
+
+	-- Ground behind the lobby.
+	part({
+		Name = "LobbyBack",
+		Size = Vector3.new(GROUND_HALF_WIDTH * 2 + sideWidth * 2, 2, 600),
+		CFrame = CFrame.new(0, Config.GroundY - 1.05, startZ + 300),
+		Color = Config.Zones[1].Outer,
+		Material = Enum.Material.Plastic,
+		Parent = ground,
+	})
+
+	-- Neon grid lines in the Neon zone.
+	local neonZone = Config.Zones[3]
+	local neonStart = Config.Zones[2].EndsAt
+	for d = neonStart, neonZone.EndsAt, TILE do
+		part({
+			Name = "NeonLine",
+			Size = Vector3.new(GROUND_HALF_WIDTH * 2, 0.2, 0.6),
+			CFrame = CFrame.new(0, Config.GroundY + 0.05, -d),
+			Color = Color3.fromRGB(60, 255, 140),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = ground,
+		})
+	end
+	for x = -GROUND_HALF_WIDTH, GROUND_HALF_WIDTH, TILE do
+		part({
+			Name = "NeonLine",
+			Size = Vector3.new(0.6, 0.2, neonZone.EndsAt - neonStart),
+			CFrame = CFrame.new(x, Config.GroundY + 0.05, -(neonStart + neonZone.EndsAt) / 2),
+			Color = Color3.fromRGB(0, 200, 255),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = ground,
+		})
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Lane rails, markers and gates
+--------------------------------------------------------------------------------
+
+local function buildLane(map: Folder)
+	local lane = Instance.new("Folder")
+	lane.Name = "Lane"
+	lane.Parent = map
+
+	local railX = Config.LaneWidth / 2 + 0.6
+	local segment = 16
+	local index = 0
+	for d = 8, Config.LaneLength, segment do
+		for _, side in { -1, 1 } do
+			part({
+				Name = "Rail",
+				Size = Vector3.new(0.9, 0.9, segment),
+				CFrame = CFrame.new(side * railX, Config.GroundY + 0.45, -(d + segment / 2)),
+				Color = if index % 2 == 0 then Color3.fromRGB(230, 40, 60) else Color3.fromRGB(245, 245, 245),
+				CanCollide = false,
+				Parent = lane,
+			})
+		end
+		index += 1
+	end
+
+	-- Distance markers every 100 studs on both sides.
+	for d = 100, Config.LaneLength, 100 do
+		for _, side in { -1, 1 } do
+			local x = side * (railX + 5)
+			part({
+				Name = "MarkerPost",
+				Size = Vector3.new(0.8, 6, 0.8),
+				CFrame = CFrame.new(x, Config.GroundY + 3, -d),
+				Color = Color3.fromRGB(90, 60, 40),
+				Parent = lane,
+			})
+			sign(
+				lane,
+				Vector3.new(8, 4, 0.6),
+				CFrame.new(x, Config.GroundY + 7.5, -d),
+				tostring(d),
+				Color3.fromRGB(255, 196, 40)
+			)
+		end
+	end
+
+	-- Zone gates.
+	local gateStart = 0
+	for index2, zone in Config.Zones do
+		local d = if index2 == 1 then 14 else gateStart
+		local pillarX = Config.LaneWidth / 2 + 4
+		for _, side in { -1, 1 } do
+			part({
+				Name = "GatePillar",
+				Size = Vector3.new(4, 30, 4),
+				CFrame = CFrame.new(side * pillarX, Config.GroundY + 15, -d),
+				Color = Color3.fromRGB(255, 196, 40),
+				Parent = lane,
+			})
+		end
+		local title = if index2 == 1 then Config.GameName else string.upper(zone.Name)
+		sign(
+			lane,
+			Vector3.new(pillarX * 2 + 4, 7, 2),
+			CFrame.new(0, Config.GroundY + 33, -d),
+			title,
+			Color3.fromRGB(120, 70, 220),
+			Color3.fromRGB(255, 230, 90)
+		)
+		gateStart = zone.EndsAt
+	end
+
+	-- Finish wall at the very end of the lane.
+	local finishD = Config.LaneLength + 6
+	part({
+		Name = "FinishWall",
+		Size = Vector3.new(Config.LaneWidth + 12, 40, 4),
+		CFrame = CFrame.new(0, Config.GroundY + 20, -finishD),
+		Color = Color3.fromRGB(255, 200, 40),
+		Material = Enum.Material.Neon,
+		Parent = lane,
+	})
+	sign(
+		lane,
+		Vector3.new(60, 12, 1),
+		CFrame.new(0, Config.GroundY + 20, -(finishD - 2.6)),
+		"🏆 FINISH 🏆",
+		Color3.fromRGB(120, 70, 220)
+	)
+end
+
+--------------------------------------------------------------------------------
+-- Slingshot + lobby
+--------------------------------------------------------------------------------
+
+local function buildSlingshot(map: Folder)
+	local model = Instance.new("Model")
+	model.Name = "Slingshot"
+	model.Parent = map
+
+	local base = Config.SlingshotPosition
+	local wood = Color3.fromRGB(150, 96, 60)
+	local cap = Color3.fromRGB(226, 52, 70)
+
+	-- Launch pad (blue with a yellow border) behind the slingshot.
+	part({
+		Name = "Pad",
+		Size = Vector3.new(26, 0.6, 26),
+		CFrame = CFrame.new(base + Vector3.new(0, 0.3, 9)),
+		Color = Color3.fromRGB(90, 110, 230),
+		Material = Enum.Material.Plastic,
+		Parent = model,
+	})
+	for _, info in {
+		{ Vector3.new(28, 0.8, 1.5), Vector3.new(0, 0.4, 9 - 13.75) },
+		{ Vector3.new(28, 0.8, 1.5), Vector3.new(0, 0.4, 9 + 13.75) },
+		{ Vector3.new(1.5, 0.8, 26), Vector3.new(-13.75, 0.4, 9) },
+		{ Vector3.new(1.5, 0.8, 26), Vector3.new(13.75, 0.4, 9) },
+	} do
+		part({
+			Name = "PadBorder",
+			Size = info[1],
+			CFrame = CFrame.new(base + info[2]),
+			Color = Color3.fromRGB(255, 206, 40),
+			Parent = model,
+		})
+	end
+
+	-- Trunk.
+	part({
+		Name = "Trunk",
+		Size = Vector3.new(2.2, 6, 2.2),
+		CFrame = CFrame.new(base + Vector3.new(0, 3.5, 0)),
+		Color = wood,
+		Parent = model,
+	})
+
+	-- Two arms angled 25 degrees outwards, with red caps.
+	local angle = math.rad(25)
+	local armLength = 7
+	for _, side in { -1, 1 } do
+		local dir = Vector3.new(side * math.sin(angle), math.cos(angle), 0)
+		local root = base + Vector3.new(0, 6.5, 0)
+		local rotation = CFrame.Angles(0, 0, -side * angle)
+		part({
+			Name = "Arm",
+			Size = Vector3.new(1.8, armLength, 1.8),
+			CFrame = CFrame.new(root + dir * (armLength / 2)) * rotation,
+			Color = wood,
+			Parent = model,
+		})
+		part({
+			Name = "Cap",
+			Size = Vector3.new(2.4, 1.6, 2.4),
+			CFrame = CFrame.new(root + dir * (armLength + 0.4)) * rotation,
+			Color = cap,
+			Parent = model,
+		})
+	end
+
+	-- Resting band between the arm tips (the client hides it while aiming).
+	local spread = Config.SlingshotArmSpread
+	local tipY = Config.SlingshotArmTip
+	part({
+		Name = "RestBand",
+		Size = Vector3.new(spread * 2, 0.5, 0.5),
+		CFrame = CFrame.new(base + Vector3.new(0, tipY - 0.6, 0)),
+		Color = Color3.fromRGB(255, 120, 60),
+		CanCollide = false,
+		Parent = model,
+	})
+	part({
+		Name = "Pouch",
+		Size = Vector3.new(2.4, 1, 1),
+		CFrame = CFrame.new(base + Vector3.new(0, tipY - 0.6, 0.3)),
+		Color = Color3.fromRGB(110, 70, 40),
+		CanCollide = false,
+		Parent = model,
+	})
+
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "LobbySpawn"
+	spawn.Anchored = true
+	spawn.Size = Vector3.new(12, 1, 12)
+	spawn.CFrame = CFrame.new(Config.LobbySpawn)
+	spawn.Color = Color3.fromRGB(255, 206, 40)
+	spawn.Material = Enum.Material.Plastic
+	spawn.TopSurface = Enum.SurfaceType.Smooth
+	spawn.Duration = 0
+	spawn.Neutral = true
+	spawn.Parent = map
+end
+
+--------------------------------------------------------------------------------
+-- Decorations
+--------------------------------------------------------------------------------
+
+local function palmTree(parent: Instance, position: Vector3, rng: Random)
+	local tree = Instance.new("Model")
+	tree.Name = "PalmTree"
+	tree.Parent = parent
+
+	local height = rng:NextNumber(10, 16)
+	local lean = math.rad(rng:NextNumber(-12, 12))
+	local trunkColor = Color3.fromRGB(120, 70, 140)
+	local top = position + Vector3.new(math.sin(lean), math.cos(lean), 0) * height
+	part({
+		Name = "Trunk",
+		Size = Vector3.new(1.6, height, 1.6),
+		CFrame = CFrame.new((position + top) / 2) * CFrame.Angles(0, 0, -lean),
+		Color = trunkColor,
+		CanCollide = false,
+		Parent = tree,
+	})
+	local leafColor = Color3.fromRGB(80, 200, 70)
+	for i = 1, 6 do
+		local yaw = math.rad(i * 60 + rng:NextNumber(-10, 10))
+		part({
+			Name = "Leaf",
+			Size = Vector3.new(2.6, 0.5, 9),
+			CFrame = CFrame.new(top) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(math.rad(-22), 0, 0) * CFrame.new(
+				0,
+				0,
+				-4
+			),
+			Color = if i % 2 == 0 then leafColor else Color3.fromRGB(110, 220, 80),
+			CanCollide = false,
+			Parent = tree,
+		})
+	end
+end
+
+local function cloud(parent: Instance, position: Vector3, rng: Random)
+	for i = 1, rng:NextInteger(2, 4) do
+		part({
+			Name = "Cloud",
+			Size = Vector3.new(rng:NextNumber(14, 34), rng:NextNumber(5, 9), rng:NextNumber(12, 26)),
+			CFrame = CFrame.new(position + Vector3.new(rng:NextNumber(-14, 14), rng:NextNumber(-2, 3), rng:NextNumber(-8, 8))),
+			Color = Color3.fromRGB(248, 250, 255),
+			CanCollide = false,
+			CastShadow = false,
+			Parent = parent,
+		})
+	end
+end
+
+local function buildDecorations(map: Folder)
+	local deco = Instance.new("Folder")
+	deco.Name = "Decorations"
+	deco.Parent = map
+	local rng = Random.new(42)
+	local outside = Config.LaneWidth / 2 + 12
+
+	-- Lobby palms.
+	for _, offset in {
+		Vector3.new(-30, 0, 30),
+		Vector3.new(30, 0, 34),
+		Vector3.new(-40, 0, 80),
+		Vector3.new(38, 0, 90),
+		Vector3.new(-22, 0, 120),
+		Vector3.new(26, 0, 128),
+	} do
+		palmTree(deco, offset, rng)
+	end
+
+	local function sideX(): number
+		local side = if rng:NextNumber() < 0.5 then -1 else 1
+		return side * rng:NextNumber(outside, outside + 70)
+	end
+
+	for d = 40, Config.LaneLength, 34 do
+		local zone = CourseLayout.ZoneIndexAt(d)
+		local x = sideX()
+		local pos = Vector3.new(x, Config.GroundY, -d)
+		if zone == 1 then
+			palmTree(deco, pos, rng)
+		elseif zone == 2 then
+			local height = rng:NextNumber(30, 110)
+			local width = rng:NextNumber(14, 26)
+			part({
+				Name = "Building",
+				Size = Vector3.new(width, height, width),
+				CFrame = CFrame.new(x + math.sign(x) * width / 2, Config.GroundY + height / 2, -d),
+				Color = if rng:NextNumber() < 0.5 then Color3.fromRGB(120, 160, 240) else Color3.fromRGB(210, 222, 250),
+				Material = Enum.Material.SmoothPlastic,
+				Parent = deco,
+			})
+		elseif zone == 3 then
+			local height = rng:NextNumber(20, 70)
+			part({
+				Name = "NeonPillar",
+				Size = Vector3.new(2, height, 2),
+				CFrame = CFrame.new(x, Config.GroundY + height / 2, -d),
+				Color = if rng:NextNumber() < 0.5 then Color3.fromRGB(60, 255, 140) else Color3.fromRGB(190, 90, 255),
+				Material = Enum.Material.Neon,
+				Parent = deco,
+			})
+		else
+			local height = rng:NextNumber(10, 20)
+			part({
+				Name = "LollipopStick",
+				Size = Vector3.new(1, height, 1),
+				CFrame = CFrame.new(x, Config.GroundY + height / 2, -d),
+				Color = Color3.fromRGB(250, 250, 250),
+				Parent = deco,
+			})
+			part({
+				Name = "Lollipop",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.new(8, 8, 8),
+				CFrame = CFrame.new(x, Config.GroundY + height + 3, -d),
+				Color = Config.Zones[4].BlockColors[rng:NextInteger(1, 4)],
+				Parent = deco,
+			})
+		end
+	end
+
+	-- Clouds and floating islands across the whole map.
+	for _ = 1, 70 do
+		cloud(
+			deco,
+			Vector3.new(rng:NextNumber(-500, 500), rng:NextNumber(70, 160), -rng:NextNumber(-200, Config.LaneLength)),
+			rng
+		)
+	end
+	for _ = 1, 18 do
+		local pos = Vector3.new(sideX() * 1.6, rng:NextNumber(35, 90), -rng:NextNumber(0, Config.LaneLength))
+		local size = rng:NextNumber(14, 26)
+		part({
+			Name = "IslandTop",
+			Size = Vector3.new(size, 3, size),
+			CFrame = CFrame.new(pos),
+			Color = Color3.fromRGB(110, 206, 72),
+			Material = Enum.Material.Plastic,
+			Parent = deco,
+		})
+		part({
+			Name = "IslandDirt",
+			Size = Vector3.new(size * 0.7, 6, size * 0.7),
+			CFrame = CFrame.new(pos - Vector3.new(0, 4.5, 0)),
+			Color = Color3.fromRGB(150, 100, 64),
+			Parent = deco,
+		})
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Lighting
+--------------------------------------------------------------------------------
+
+local function setupLighting()
+	Lighting.ClockTime = 14
+	Lighting.Brightness = 2.4
+	Lighting.Ambient = Color3.fromRGB(110, 110, 120)
+	Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 160)
+	Lighting.EnvironmentDiffuseScale = 0.6
+	Lighting.EnvironmentSpecularScale = 0.4
+	Lighting.GlobalShadows = true
+	Lighting.ShadowSoftness = 0.3
+
+	for _, child in Lighting:GetChildren() do
+		if child:IsA("Atmosphere") or child:IsA("PostEffect") then
+			child:Destroy()
+		end
+	end
+
+	local atmosphere = Instance.new("Atmosphere")
+	atmosphere.Density = 0.28
+	atmosphere.Offset = 0.15
+	atmosphere.Color = Color3.fromRGB(200, 228, 255)
+	atmosphere.Decay = Color3.fromRGB(120, 170, 230)
+	atmosphere.Glare = 0.2
+	atmosphere.Haze = 1.2
+	atmosphere.Parent = Lighting
+
+	local bloom = Instance.new("BloomEffect")
+	bloom.Intensity = 0.6
+	bloom.Size = 28
+	bloom.Threshold = 1.4
+	bloom.Parent = Lighting
+
+	local color = Instance.new("ColorCorrectionEffect")
+	color.Saturation = 0.18
+	color.Contrast = 0.06
+	color.Brightness = 0.02
+	color.Parent = Lighting
+
+	local rays = Instance.new("SunRaysEffect")
+	rays.Intensity = 0.06
+	rays.Spread = 0.6
+	rays.Parent = Lighting
+end
+
+function WorldBuilder.Build()
+	local existing = Workspace:FindFirstChild("Map")
+	if existing then
+		existing:Destroy()
+	end
+
+	local map = Instance.new("Folder")
+	map.Name = "Map"
+
+	buildGround(map)
+	buildLane(map)
+	buildSlingshot(map)
+	buildDecorations(map)
+
+	map.Parent = Workspace
+	setupLighting()
+	return map
+end
+
+return WorldBuilder
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="11">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="12">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="13">
+        <Properties>
+          <string name="Name">Client</string>
+          <string name="Source"><![CDATA[--[[
+	Sling Smash - client entry point.
+
+	Game loop:  Lobby -> Aiming (in the slingshot) -> Charging (hold) -> Flying
+	            -> Results -> Retry / Return
+
+	Flight is simulated here with simple custom physics: the character is put in
+	PlatformStand and its root part is moved every frame, which replicates to
+	other players because the client owns its own character's physics.
+]]
+
+local ContextActionService = game:GetService("ContextActionService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local CourseLayout = require(Shared:WaitForChild("CourseLayout"))
+local Format = require(Shared:WaitForChild("Format"))
+
+local Course = require(script.Course)
+local Effects = require(script.Effects)
+local UI = require(script.UI)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui") :: PlayerGui
+local remotes = ReplicatedStorage:WaitForChild("Remotes")
+local GetDataRemote = remotes:WaitForChild("GetData") :: RemoteFunction
+local DataChangedRemote = remotes:WaitForChild("DataChanged") :: RemoteEvent
+local StartLaunchRemote = remotes:WaitForChild("StartLaunch") :: RemoteFunction
+local FinishLaunchRemote = remotes:WaitForChild("FinishLaunch") :: RemoteFunction
+local UpdateSettingRemote = remotes:WaitForChild("UpdateSetting") :: RemoteEvent
+
+local HOLD_STEP = "SlingSmashHold"
+local FLIGHT_STEP = "SlingSmashFlight"
+local CHARGE_ACTION = "SlingSmashCharge"
+local SUBSTEP = 1 / 120
+
+local rng = Random.new()
+
+--------------------------------------------------------------------------------
+-- State
+--------------------------------------------------------------------------------
+
+local state = "Lobby" -- Lobby | Aiming | Charging | Flying | Results
+local data = nil
+local stats = Config.ComputeStats({}, 0)
+local power = 0
+local chargeStart = 0
+local chargeInput: InputObject? = nil
+local maxAnnounced = false
+local flight = nil
+
+local character: Model? = nil
+local humanoid: Humanoid? = nil
+local root: BasePart? = nil
+local savedGroups = {} -- [BasePart] = original CollisionGroup
+
+local course = Course.new()
+task.spawn(function()
+	course:Build()
+end)
+
+local controls = nil
+task.spawn(function()
+	local playerScripts = player:WaitForChild("PlayerScripts")
+	local module = playerScripts:WaitForChild("PlayerModule", 10)
+	if module then
+		local ok, playerModule = pcall(require, module)
+		if ok and playerModule then
+			controls = (playerModule :: any):GetControls()
+		end
+	end
+end)
+
+-- Render-step bindings, tracked so cleanup never unbinds something unbound.
+local boundSteps = {}
+local function bindStep(name: string, callback: (number) -> ())
+	if boundSteps[name] then
+		RunService:UnbindFromRenderStep(name)
+	end
+	RunService:BindToRenderStep(name, Enum.RenderPriority.Camera.Value + 1, callback)
+	boundSteps[name] = true
+end
+local function unbindStep(name: string)
+	if boundSteps[name] then
+		boundSteps[name] = nil
+		RunService:UnbindFromRenderStep(name)
+	end
+end
+
+local function camera(): Camera
+	return Workspace.CurrentCamera :: Camera
+end
+
+--------------------------------------------------------------------------------
+-- Helpers
+--------------------------------------------------------------------------------
+
+-- -1 (left) .. 1 (right). Works with keyboard, thumbstick and gamepad.
+local function steerInput(): number
+	local x = 0
+	if controls then
+		local ok, move = pcall(function()
+			return controls:GetMoveVector()
+		end)
+		if ok and typeof(move) == "Vector3" then
+			x = move.X
+		end
+	end
+	if math.abs(x) < 0.05 then
+		x = 0
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then
+			x -= 1
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) or UserInputService:IsKeyDown(Enum.KeyCode.Right) then
+			x += 1
+		end
+	end
+	return math.clamp(x, -1, 1)
+end
+
+local function setFlyerMode(enabled: boolean)
+	if enabled then
+		if humanoid then
+			humanoid.PlatformStand = true
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+		end
+		if character then
+			for _, descendant in character:GetDescendants() do
+				if descendant:IsA("BasePart") then
+					if savedGroups[descendant] == nil then
+						savedGroups[descendant] = descendant.CollisionGroup
+					end
+					descendant.CollisionGroup = "Flyer"
+				end
+			end
+		end
+	else
+		for part, group in savedGroups do
+			if part.Parent then
+				part.CollisionGroup = group
+			end
+		end
+		table.clear(savedGroups)
+		if humanoid then
+			humanoid.PlatformStand = false
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+		end
+	end
+end
+
+local function restoreCamera()
+	local cam = camera()
+	cam.CameraType = Enum.CameraType.Custom
+	if humanoid then
+		cam.CameraSubject = humanoid
+	end
+	cam.FieldOfView = 70
+end
+
+local function pouchCFrame(amount: number): CFrame
+	local back = Config.PouchRestOffset + Config.PouchPullDistance * amount
+	local position = Config.SlingshotPosition + Vector3.new(0, Config.PouchHeight - amount * 1.2, back)
+	return CFrame.lookAt(position, position + Config.Forward)
+end
+
+--------------------------------------------------------------------------------
+-- Slingshot bands (local visuals while aiming)
+--------------------------------------------------------------------------------
+
+local bands: { BasePart } = {}
+local hiddenSlingParts: { BasePart } = {}
+
+local function makeBand(): Part
+	local band = Instance.new("Part")
+	band.Name = "SlingBand"
+	band.Anchored = true
+	band.CanCollide = false
+	band.CanQuery = false
+	band.CanTouch = false
+	band.CastShadow = false
+	band.Material = Enum.Material.SmoothPlastic
+	band.Color = Color3.fromRGB(255, 120, 60)
+	band.Size = Vector3.new(0.45, 0.45, 1)
+	band.Transparency = 1
+	band.Parent = course.Folder
+	return band
+end
+
+local function setBandsVisible(visible: boolean)
+	if #bands == 0 then
+		bands = { makeBand(), makeBand() }
+	end
+	for _, band in bands do
+		band.Transparency = if visible then 0 else 1
+	end
+
+	-- Hide the server's resting band locally while our stretched bands show.
+	local map = Workspace:FindFirstChild("Map")
+	local slingshot = map and map:FindFirstChild("Slingshot")
+	if slingshot and #hiddenSlingParts == 0 then
+		for _, name in { "RestBand", "Pouch" } do
+			local partInstance = slingshot:FindFirstChild(name)
+			if partInstance and partInstance:IsA("BasePart") then
+				table.insert(hiddenSlingParts, partInstance)
+			end
+		end
+	end
+	for _, slingPart in hiddenSlingParts do
+		slingPart.Transparency = if visible then 1 else 0
+	end
+end
+
+local function updateBands(pouch: Vector3)
+	local base = Config.SlingshotPosition
+	local tipY = Config.SlingshotArmTip - 0.6
+	for i, side in { -1, 1 } do
+		local band = bands[i]
+		if band then
+			local tip = base + Vector3.new(side * Config.SlingshotArmSpread, tipY, 0)
+			local length = (pouch - tip).Magnitude
+			band.Size = Vector3.new(0.45, 0.45, length)
+			band.CFrame = CFrame.lookAt((tip + pouch) / 2, pouch)
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Aiming + charging
+--------------------------------------------------------------------------------
+
+local enterAiming, startFlight, returnToLobby
+
+local function aimCamera(amount: number, dt: number)
+	local pouch = pouchCFrame(amount).Position
+	local position = pouch + Vector3.new(0, 5 + amount, 14 + amount * 3)
+	local target = pouch + Config.Forward * 40 + Vector3.new(0, 2, 0)
+	local cam = camera()
+	cam.CameraType = Enum.CameraType.Scriptable
+	cam.CFrame = CFrame.lookAt(position, target) * Effects.ShakeOffset(dt)
+	cam.FieldOfView = 70 + amount * 6
+end
+
+local function holdStep(dt: number)
+	if state == "Charging" then
+		power = math.min(1, (os.clock() - chargeStart) / Config.Flight.ChargeTime)
+		if power >= 1 and not maxAnnounced then
+			maxAnnounced = true
+			UI.Pop("MAX POWER!", "max")
+			Effects.Play("Coin", 1.6)
+		end
+		if power > 0.6 then
+			Effects.Shake(0.08 * power)
+		end
+	end
+	local cf = pouchCFrame(power)
+	if root then
+		root.CFrame = cf
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+	end
+	updateBands(cf.Position + Vector3.new(0, 0, 1.2))
+	aimCamera(power, dt)
+	UI.SetPower(power, if state == "Charging" then "charging" else "aim")
+end
+
+local function unbindAiming()
+	unbindStep(HOLD_STEP)
+	ContextActionService:UnbindAction(CHARGE_ACTION)
+	setBandsVisible(false)
+end
+
+local function startCharging(input: InputObject?)
+	if state ~= "Aiming" then
+		return
+	end
+	state = "Charging"
+	chargeStart = os.clock()
+	chargeInput = input
+	maxAnnounced = false
+	Effects.Play("Click", 0.8)
+end
+
+local function releaseCharge()
+	if state ~= "Charging" then
+		return
+	end
+	local launchPower = power
+	unbindAiming()
+	startFlight(launchPower)
+end
+
+local function isPointerInput(input: InputObject): boolean
+	return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function chargeAction(_actionName: string, inputState: Enum.UserInputState, input: InputObject)
+	if inputState == Enum.UserInputState.Begin then
+		startCharging(input)
+	elseif inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel then
+		if chargeInput and chargeInput.KeyCode == input.KeyCode then
+			releaseCharge()
+		end
+	end
+	return Enum.ContextActionResult.Sink
+end
+
+enterAiming = function()
+	if state == "Aiming" or state == "Charging" or state == "Flying" then
+		return
+	end
+	if not (root and humanoid and humanoid.Health > 0) then
+		return
+	end
+	if not course.Ready then
+		UI.Toast("The course is still loading...")
+		return
+	end
+
+	UI.ClosePanels()
+	UI.HideResults()
+	course:Reset()
+	setFlyerMode(true)
+
+	state = "Aiming"
+	power = 0
+	chargeInput = nil
+	setBandsVisible(true)
+	bindStep(HOLD_STEP, holdStep)
+	ContextActionService:BindActionAtPriority(
+		CHARGE_ACTION,
+		chargeAction,
+		false,
+		Enum.ContextActionPriority.High.Value + 10,
+		Enum.KeyCode.Space,
+		Enum.KeyCode.ButtonA,
+		Enum.KeyCode.ButtonR2
+	)
+
+	UI.SetMode("Aiming")
+	UI.SetPower(0, "aim")
+	UI.SetRunCoins(0, true)
+	Effects.Play("Click", 1)
+end
+
+local function cancelAim()
+	if state ~= "Aiming" and state ~= "Charging" then
+		return
+	end
+	unbindAiming()
+	returnToLobby()
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed or state ~= "Aiming" then
+		return
+	end
+	if isPointerInput(input) then
+		startCharging(input)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if state ~= "Charging" or not chargeInput or not isPointerInput(input) then
+		return
+	end
+	-- Touches must match the finger that started the charge; mouse just needs the button.
+	if input == chargeInput or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if chargeInput.UserInputType == input.UserInputType then
+			releaseCharge()
+		end
+	end
+end)
+
+--------------------------------------------------------------------------------
+-- Flight
+--------------------------------------------------------------------------------
+
+local finishFlight
+
+local function registerSmash(f, entry)
+	local info = Config.Blocks[entry.Data.Kind] or Config.Blocks.Block
+	f.Smashes += 1
+	if f.ComboTimer > 0 then
+		f.Combo += 1
+	else
+		f.Combo = 1
+	end
+	f.ComboTimer = stats.ComboWindow
+	f.MaxCombo = math.max(f.MaxCombo, f.Combo)
+
+	local multiplier = Config.ComboMultiplier(f.Combo, stats.MaxComboMult)
+	local crit = rng:NextNumber() < Config.CritChance
+	local zone = Config.Zones[entry.Data.Zone]
+	local coins = math.floor(
+		info.Value
+			* zone.ValueMult
+			* stats.SmashCoinMult
+			* multiplier
+			* (if crit then Config.CritMultiplier else 1)
+			* stats.CoinMult
+	)
+	f.RunCoins += coins
+
+	Effects.Play("Smash", rng:NextNumber(0.85, 1.35), 0.05)
+	if crit then
+		UI.Pop("CRITICAL!", "crit")
+		Effects.Shake(1.2)
+		Effects.FloatText(entry.Position + Vector3.new(0, 3, 0), "+" .. Format.Short(coins), Color3.fromRGB(255, 170, 40), 1.4)
+	else
+		Effects.Shake(0.35)
+		Effects.FloatText(entry.Position + Vector3.new(0, 2, 0), "+" .. Format.Short(coins), Color3.fromRGB(220, 150, 255), 1)
+	end
+end
+
+local function explode(f, first)
+	local queue = { first }
+	local explosions = 0
+	while #queue > 0 do
+		local entry = table.remove(queue, 1)
+		local info = Config.Blocks.TNT
+		explosions += 1
+		if explosions <= 4 then
+			Effects.Explosion(entry.Position, info.BlastRadius)
+		end
+		for _, other in course:BlocksNear(entry.Position, info.BlastRadius) do
+			local away = other.Position - entry.Position
+			local push = if away.Magnitude > 0.01 then away.Unit * 45 else Vector3.zero
+			course:Smash(other, f.Velocity * 0.4 + push)
+			registerSmash(f, other)
+			if other.Data.Kind == "TNT" then
+				table.insert(queue, other)
+			end
+		end
+	end
+	f.Velocity += Config.Forward * Config.Blocks.TNT.Boost
+	f.Velocity = Vector3.new(f.Velocity.X, math.max(f.Velocity.Y, Config.Blocks.TNT.Lift), f.Velocity.Z)
+	f.Grounded = false
+	f.FovKick = 10
+	Effects.Shake(2.2)
+	Effects.Flash(Color3.fromRGB(255, 170, 60), 0.35)
+	UI.Pop("BOOM!", "crit")
+end
+
+local function onBlock(entry)
+	local f = flight
+	if not f or entry.Broken then
+		return
+	end
+	local info = Config.Blocks[entry.Data.Kind] or Config.Blocks.Block
+	course:Smash(entry, f.Velocity)
+	registerSmash(f, entry)
+	f.Velocity *= 1 - info.Slowdown * stats.SmashSlow
+	if entry.Data.Kind == "TNT" then
+		explode(f, entry)
+	end
+end
+
+local function onStar(star)
+	local f = flight
+	if not f then
+		return
+	end
+	course:CollectStar(star)
+	f.Stars += 1
+	local zone = Config.Zones[star.Data.Zone]
+	local coins = math.floor(Config.StarValue * zone.ValueMult * stats.CoinMult)
+	f.RunCoins += coins
+	Effects.Play("Coin", 1.25)
+	Effects.Flash(Color3.fromRGB(255, 225, 90), 0.25)
+	Effects.FloatText(star.Position, "⭐ +" .. Format.Short(coins), Color3.fromRGB(255, 220, 60), 1.6)
+end
+
+local function onRing(ring)
+	local f = flight
+	if not f then
+		return
+	end
+	course:UseRing(ring)
+	f.Velocity += Config.Forward * Config.RingBoost
+	f.Velocity = Vector3.new(f.Velocity.X, math.max(f.Velocity.Y, Config.RingLift), f.Velocity.Z)
+	f.Grounded = false
+	f.FovKick = 14
+	UI.Pop("BOOST!", "boost")
+	Effects.Flash(Color3.fromRGB(80, 230, 255), 0.3)
+	Effects.Play("Launch", 1.4)
+	Effects.Shake(0.8)
+end
+
+-- One fixed physics substep of length h.
+local function simulate(f, h: number, steer: number)
+	local F = Config.Flight
+	local previous = f.Position
+	local velocity = f.Velocity
+	f.Time += h
+
+	-- Steering (sideways only).
+	local vx = velocity.X + steer * stats.Steer * h
+	if steer == 0 then
+		vx -= vx * math.min(1, F.SideDamping * h)
+	end
+	vx = math.clamp(vx, -F.MaxSideSpeed, F.MaxSideSpeed)
+	velocity = Vector3.new(vx, velocity.Y, velocity.Z)
+
+	if f.Grounded then
+		local horizontal = Vector3.new(velocity.X, 0, velocity.Z)
+		local speed = horizontal.Magnitude
+		if speed > 1e-3 then
+			local newSpeed = math.max(0, speed - F.GroundDecel * h) * (1 - math.min(1, F.GroundDrag * h))
+			horizontal *= newSpeed / speed
+		end
+		velocity = Vector3.new(horizontal.X, math.max(0, velocity.Y), horizontal.Z)
+		if velocity.Y > 0 then
+			f.Grounded = false
+		end
+	else
+		velocity *= 1 - math.min(1, F.AirDrag * h)
+		velocity -= Vector3.new(0, stats.Gravity * h, 0)
+	end
+
+	local position = previous + velocity * h
+
+	-- Bounce off the lane rails.
+	local limit = Config.LaneWidth / 2 - 1.5
+	if math.abs(position.X) > limit then
+		position = Vector3.new(math.sign(position.X) * limit, position.Y, position.Z)
+		velocity = Vector3.new(-velocity.X * 0.4, velocity.Y, velocity.Z)
+	end
+
+	-- Ground: bounce when falling fast, otherwise start sliding.
+	local floor = Config.GroundY + F.BodyHeight
+	if position.Y <= floor then
+		position = Vector3.new(position.X, floor, position.Z)
+		if velocity.Y < -F.MinBounceSpeed then
+			velocity = Vector3.new(velocity.X * F.BounceKeep, -velocity.Y * F.Bounce, velocity.Z * F.BounceKeep)
+			Effects.Shake(0.7)
+			Effects.Play("Smash", 0.7, 0.1)
+		elseif velocity.Y <= 0 then
+			velocity = Vector3.new(velocity.X, 0, velocity.Z)
+			f.Grounded = true
+		end
+	end
+
+	-- End of the lane.
+	if -position.Z >= Config.LaneLength then
+		f.Position = Vector3.new(position.X, position.Y, -Config.LaneLength)
+		f.Velocity = Vector3.zero
+		f.Done = "finish"
+		return
+	end
+
+	f.Position = position
+	f.Velocity = velocity
+
+	course:Sweep(previous, position, stats.HitRadius, onBlock, onStar, onRing)
+
+	if f.ComboTimer > 0 then
+		f.ComboTimer -= h
+		if f.ComboTimer <= 0 then
+			f.Combo = 0
+		end
+	end
+
+	local horizontalSpeed = Vector3.new(f.Velocity.X, 0, f.Velocity.Z).Magnitude
+	if f.Grounded and horizontalSpeed < F.StopSpeed then
+		f.Done = "stopped"
+	elseif f.Time > F.MaxFlightTime then
+		f.Done = "timeout"
+	end
+end
+
+local function flightStep(dt: number)
+	local f = flight
+	if not f then
+		return
+	end
+	dt = math.min(dt, 0.1)
+	local steps = math.max(1, math.ceil(dt / SUBSTEP))
+	local h = dt / steps
+	local steer = steerInput()
+	for _ = 1, steps do
+		simulate(f, h, steer)
+		if f.Done then
+			break
+		end
+	end
+
+	local velocity = f.Velocity
+	local speed = velocity.Magnitude
+
+	-- Pose: superman-style, head first, rolling into turns.
+	local direction = velocity + Config.Forward * 2
+	if direction.Magnitude < 1e-3 then
+		direction = Config.Forward
+	end
+	direction = direction.Unit
+	local wobble = if f.Grounded then 0 else math.sin(f.Time * 7) * 0.12
+	local pose = CFrame.lookAt(f.Position, f.Position + direction)
+		* CFrame.Angles(-math.pi / 2, 0, 0)
+		* CFrame.Angles(0, -steer * 0.5 + wobble, 0)
+	if root then
+		root.CFrame = pose
+		root.AssemblyLinearVelocity = velocity
+		root.AssemblyAngularVelocity = Vector3.zero
+	end
+
+	-- Chase camera.
+	local cam = camera()
+	local desired = f.Position + Vector3.new(0, 7 + math.min(speed, 200) * 0.02, 20)
+	f.CameraPosition = f.CameraPosition:Lerp(desired, 1 - math.exp(-12 * dt))
+	local look = f.Position + Config.Forward * 14 + Vector3.new(0, 1.5, 0)
+	cam.CameraType = Enum.CameraType.Scriptable
+	cam.CFrame = CFrame.lookAt(f.CameraPosition, look) * Effects.ShakeOffset(dt)
+	f.FovKick = math.max(0, f.FovKick - dt * 25)
+	cam.FieldOfView = 70 + math.clamp(speed * 0.1, 0, 22) + f.FovKick
+
+	-- HUD + effects.
+	local distance = math.max(0, -f.Position.Z)
+	UI.SetDistance(math.floor(distance))
+	UI.SetRunCoins(f.RunCoins)
+	local multiplier = Config.ComboMultiplier(f.Combo, stats.MaxComboMult)
+	UI.SetCombo(multiplier, f.ComboTimer / stats.ComboWindow, multiplier >= 2 and f.ComboTimer > 0)
+	Effects.UpdateSpeedLines(dt, math.clamp((speed - 50) / 120, 0, 1))
+	Effects.SetWind(speed / 150)
+	course:Update(f.Position)
+
+	local zoneIndex = CourseLayout.ZoneIndexAt(distance)
+	if zoneIndex > f.Zone then
+		f.Zone = zoneIndex
+		UI.Banner("🌍 " .. string.upper(Config.Zones[zoneIndex].Name))
+	end
+
+	if f.Done then
+		finishFlight(f.Done)
+	end
+end
+
+startFlight = function(launchPower: number)
+	local F = Config.Flight
+	local speed = stats.LaunchSpeed * (F.MinPower + (1 - F.MinPower) * launchPower)
+	local angle = math.rad(F.LaunchAngle)
+	local start = pouchCFrame(launchPower).Position
+
+	local f = {
+		Position = start,
+		Velocity = (Config.Forward * math.cos(angle) + Vector3.yAxis * math.sin(angle)) * speed,
+		Time = 0,
+		Grounded = false,
+		Combo = 0,
+		ComboTimer = 0,
+		MaxCombo = 0,
+		RunCoins = 0,
+		Smashes = 0,
+		Stars = 0,
+		Zone = 1,
+		FovKick = 8,
+		CameraPosition = camera().CFrame.Position,
+		LaunchId = nil,
+		Done = nil,
+	}
+	flight = f
+	state = "Flying"
+
+	task.spawn(function()
+		local ok, launchId = pcall(function()
+			return StartLaunchRemote:InvokeServer()
+		end)
+		if ok then
+			f.LaunchId = launchId
+		end
+		f.IdReady = true
+	end)
+
+	UI.SetMode("Flying")
+	UI.Pop(if launchPower >= 0.99 then "PERFECT!" else "LAUNCH!", "max")
+	Effects.Play("Launch", 0.9)
+	Effects.Shake(1)
+	bindStep(FLIGHT_STEP, flightStep)
+end
+
+finishFlight = function(reason: string)
+	local f = flight
+	if not f then
+		return
+	end
+	flight = nil
+	unbindStep(FLIGHT_STEP)
+	Effects.SetWind(0)
+	Effects.HideSpeedLines()
+	state = "Results"
+
+	-- Stand back up where we landed.
+	if root and humanoid then
+		local p = Vector3.new(f.Position.X, Config.GroundY + 3.2, f.Position.Z)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.CFrame = CFrame.lookAt(p, p + Config.Forward)
+		setFlyerMode(false)
+		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+	end
+	restoreCamera()
+	UI.SetMode("Results")
+	UI.SetCombo(1, 0, false)
+	if reason == "finish" then
+		UI.Pop("🏆 FINISH!", "best")
+	end
+
+	local distance = math.max(0, -f.Position.Z)
+	local comboMultiplier = Config.ComboMultiplier(f.MaxCombo, stats.MaxComboMult)
+	task.spawn(function()
+		local waited = 0
+		while not f.IdReady and waited < 5 do
+			waited += task.wait(0.1)
+		end
+		local report = {
+			Distance = distance,
+			Smashes = f.Smashes,
+			Stars = f.Stars,
+			MaxCombo = f.MaxCombo,
+			RunCoins = f.RunCoins,
+		}
+		local ok, result = pcall(function()
+			return FinishLaunchRemote:InvokeServer(f.LaunchId, report)
+		end)
+		if not ok or type(result) ~= "table" then
+			result = {
+				Earned = 0,
+				Distance = math.floor(distance),
+				Smashes = f.Smashes,
+				MaxCombo = f.MaxCombo,
+				NewBest = false,
+				Failed = true,
+			}
+		end
+		if state ~= "Results" then
+			return
+		end
+		if result.NewBest then
+			UI.Pop("NEW BEST!", "best")
+			Effects.Flash(Color3.fromRGB(255, 200, 255), 0.3)
+		end
+		Effects.Play("Coin", 1)
+		UI.ShowResults(result, comboMultiplier)
+	end)
+end
+
+returnToLobby = function()
+	state = "Lobby"
+	flight = nil
+	unbindStep(FLIGHT_STEP)
+	unbindAiming()
+	Effects.SetWind(0)
+	Effects.HideSpeedLines()
+	setFlyerMode(false)
+	if root then
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.CFrame = CFrame.lookAt(Config.ReturnPoint, Config.ReturnPoint + Config.Forward)
+	end
+	restoreCamera()
+	UI.SetMode("Lobby")
+end
+
+--------------------------------------------------------------------------------
+-- Character lifecycle
+--------------------------------------------------------------------------------
+
+local function resetToLobbyState()
+	flight = nil
+	unbindStep(FLIGHT_STEP)
+	unbindAiming()
+	Effects.SetWind(0)
+	Effects.HideSpeedLines()
+	table.clear(savedGroups)
+	state = "Lobby"
+	UI.SetMode("Lobby")
+end
+
+local function onCharacterAdded(newCharacter: Model)
+	character = newCharacter
+	humanoid = newCharacter:WaitForChild("Humanoid", 10) :: Humanoid?
+	root = newCharacter:WaitForChild("HumanoidRootPart", 10) :: BasePart?
+	resetToLobbyState()
+	restoreCamera()
+	if humanoid then
+		humanoid.Died:Connect(function()
+			if character == newCharacter then
+				resetToLobbyState()
+			end
+		end)
+	end
+end
+
+
+--------------------------------------------------------------------------------
+-- Data + UI wiring
+--------------------------------------------------------------------------------
+
+local function applyData(newData)
+	if type(newData) ~= "table" then
+		return
+	end
+	data = newData
+	stats = Config.ComputeStats(newData.Upgrades, newData.Rebirths)
+	UI.SetData(newData)
+	Effects.ApplySettings(newData.Settings)
+end
+
+local function invoke(remoteName: string, ...): (boolean, string?)
+	local args = table.pack(...)
+	local remote = remotes:FindFirstChild(remoteName)
+	if not remote or not remote:IsA("RemoteFunction") then
+		return false, "Missing remote " .. remoteName
+	end
+	local ok, success, message = pcall(function()
+		return remote:InvokeServer(table.unpack(args, 1, args.n))
+	end)
+	if not ok then
+		return false, "Server didn't respond"
+	end
+	return success == true, message
+end
+
+Effects.Init(playerGui)
+UI.Init(playerGui, {
+	Launch = function()
+		enterAiming()
+	end,
+	Cancel = function()
+		cancelAim()
+	end,
+	Retry = function()
+		enterAiming()
+	end,
+	Return = function()
+		returnToLobby()
+	end,
+	Click = function()
+		Effects.Play("Click", 1.2)
+	end,
+	BuyUpgrade = function(nodeId: string)
+		local node = Config.NodesById[nodeId]
+		if not node or not data then
+			return
+		end
+		if data.Upgrades[nodeId] then
+			return
+		end
+		if node.Requires ~= "Start" and not data.Upgrades[node.Requires] then
+			UI.Toast("🔒 Unlock " .. Config.NodesById[node.Requires].Name .. " first")
+			return
+		end
+		if data.Coins < node.Cost then
+			UI.Toast("Not enough ⭐! Launch to earn more.", Color3.fromRGB(255, 120, 120))
+			return
+		end
+		local ok, message = invoke("BuyUpgrade", nodeId)
+		if ok then
+			Effects.Play("Coin", 1.4)
+			UI.Toast("✅ " .. node.Name .. " unlocked!", Color3.fromRGB(140, 255, 100))
+		else
+			UI.Toast(message or "Couldn't buy that", Color3.fromRGB(255, 120, 120))
+		end
+	end,
+	Rebirth = function()
+		local ok, message = invoke("Rebirth")
+		if ok then
+			UI.ClosePanels()
+			UI.Pop("REBIRTH!", "best")
+			Effects.Flash(Color3.fromRGB(200, 140, 255), 0.5)
+		else
+			UI.Toast(message or "Can't rebirth yet", Color3.fromRGB(255, 120, 120))
+		end
+	end,
+	BuyTrail = function(trailId: string)
+		local ok, message = invoke("BuyTrail", trailId)
+		if ok then
+			Effects.Play("Coin", 1.4)
+			UI.Toast("✨ New trail equipped!", Color3.fromRGB(140, 255, 100))
+		else
+			UI.Toast(message or "Couldn't buy that", Color3.fromRGB(255, 120, 120))
+		end
+	end,
+	EquipTrail = function(trailId: string)
+		local ok, message = invoke("EquipTrail", trailId)
+		if not ok then
+			UI.Toast(message or "Couldn't equip that", Color3.fromRGB(255, 120, 120))
+		end
+	end,
+	Setting = function(key: string, value: boolean)
+		if not data then
+			return
+		end
+		data.Settings[key] = value
+		Effects.ApplySettings(data.Settings)
+		UI.SetData(data)
+		UpdateSettingRemote:FireServer(key, value)
+	end,
+})
+
+-- Holding the power panel itself also charges (handy on phones).
+UI.PowerButton().InputBegan:Connect(function(input)
+	if state == "Aiming" and isPointerInput(input) then
+		startCharging(input)
+	end
+end)
+
+DataChangedRemote.OnClientEvent:Connect(applyData)
+task.spawn(function()
+	for _ = 1, 5 do
+		local ok, result = pcall(function()
+			return GetDataRemote:InvokeServer()
+		end)
+		if ok and type(result) == "table" then
+			applyData(result)
+			return
+		end
+		task.wait(2)
+	end
+end)
+
+-- Keep tidying smashed blocks while not flying (the flight loop does it otherwise).
+RunService.Heartbeat:Connect(function()
+	if not flight then
+		course:Update(nil)
+	end
+end)
+
+player.CharacterAdded:Connect(onCharacterAdded)
+if player.Character then
+	task.spawn(onCharacterAdded, player.Character)
+end
+]]></string>
+        </Properties>
+        <Item class="ModuleScript" referent="14">
+          <Properties>
+            <string name="Name">Course</string>
+            <string name="Source"><![CDATA[--[[
+	The smashable course, built locally on each client from CourseLayout.
+
+	Blocks are bucketed by distance so the flight code can sweep the flyer's
+	path every frame without physics queries. Smashed blocks are unanchored and
+	flung, then hidden; Reset() puts everything back for the next launch.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local CourseLayout = require(ReplicatedStorage.Shared.CourseLayout)
+local Widgets = require(script.Parent.Widgets)
+
+local Course = {}
+Course.__index = Course
+
+local BUCKET = 16
+local FLING_TIME = 2.5
+local BLOCK_HIT_RADIUS = Config.BlockSize * 0.55
+
+local rng = Random.new()
+
+local function distanceToSegment(point: Vector3, a: Vector3, b: Vector3): number
+	local ab = b - a
+	local lengthSquared = ab:Dot(ab)
+	if lengthSquared < 1e-6 then
+		return (point - a).Magnitude
+	end
+	local t = math.clamp((point - a):Dot(ab) / lengthSquared, 0, 1)
+	return (a + ab * t - point).Magnitude
+end
+
+local function bucketOf(distance: number): number
+	return math.floor(distance / BUCKET)
+end
+
+local function tntLabel(part: BasePart, face: Enum.NormalId)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = face
+	gui.LightInfluence = 0
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 25
+	gui.Parent = part
+	Widgets.Label({
+		Text = "TNT",
+		Size = UDim2.fromScale(1, 0.5),
+		Position = UDim2.fromScale(0, 0.25),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = Color3.fromRGB(245, 245, 245),
+		TextColor3 = Color3.fromRGB(30, 30, 30),
+		StrokeThickness = 0,
+		Parent = gui,
+	})
+end
+
+function Course.new()
+	local self = setmetatable({}, Course)
+	self.Layout = CourseLayout.Get()
+	self.Folder = Instance.new("Folder")
+	self.Folder.Name = "LocalCourse"
+	self.Folder.Parent = Workspace
+	self.Blocks = {}
+	self.Buckets = {}
+	self.Stars = {}
+	self.Rings = {}
+	self.Flung = {}
+	self.Ready = false
+	return self
+end
+
+function Course:_buildBlock(data)
+	local zone = Config.Zones[data.Zone]
+	local size = Config.BlockSize - 0.08
+	local part = Instance.new("Part")
+	part.Name = data.Kind
+	part.Anchored = true
+	part.Size = Vector3.new(size, size, size)
+	part.CFrame = CFrame.new(data.Position)
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.CanQuery = false
+	part.CanTouch = false
+
+	if data.Kind == "Gold" then
+		part.Color = Color3.fromRGB(255, 196, 40)
+		part.Material = Enum.Material.Neon
+	elseif data.Kind == "TNT" then
+		part.Color = Color3.fromRGB(220, 40, 40)
+		part.Material = Enum.Material.SmoothPlastic
+		tntLabel(part, Enum.NormalId.Back)
+		tntLabel(part, Enum.NormalId.Left)
+		tntLabel(part, Enum.NormalId.Right)
+	else
+		local base = zone.BlockColors[data.ColorIndex] or zone.BlockColors[1]
+		-- Deterministic per-block shade so walls look hand-built.
+		local shade = ((data.Id * 37) % 11 - 5) / 60
+		part.Color = if shade >= 0 then Widgets.Lighten(base, shade) else Widgets.Darken(base, -shade)
+		part.Material = zone.BlockMaterial
+	end
+	part.Parent = self.Folder
+
+	local entry = {
+		Data = data,
+		Part = part,
+		Position = data.Position,
+		CFrame = part.CFrame,
+		Radius = BLOCK_HIT_RADIUS,
+		Broken = false,
+	}
+	table.insert(self.Blocks, entry)
+	local bucket = bucketOf(-data.Position.Z)
+	local list = self.Buckets[bucket]
+	if not list then
+		list = {}
+		self.Buckets[bucket] = list
+	end
+	table.insert(list, entry)
+end
+
+function Course:_buildStar(data)
+	local ball = Instance.new("Part")
+	ball.Name = "Star"
+	ball.Shape = Enum.PartType.Ball
+	ball.Size = Vector3.new(3, 3, 3)
+	ball.Anchored = true
+	ball.CanCollide = false
+	ball.CanQuery = false
+	ball.CanTouch = false
+	ball.CastShadow = false
+	ball.Material = Enum.Material.Neon
+	ball.Color = Color3.fromRGB(255, 214, 40)
+	ball.CFrame = CFrame.new(data.Position)
+	ball.Parent = self.Folder
+
+	local billboard = Widgets.new("BillboardGui", {
+		Size = UDim2.new(8, 0, 8, 0),
+		LightInfluence = 0,
+		MaxDistance = 600,
+		Parent = ball,
+	})
+	Widgets.Label({ Text = "⭐", Size = UDim2.fromScale(1, 1), StrokeThickness = 0, Parent = billboard })
+
+	table.insert(self.Stars, {
+		Data = data,
+		Part = ball,
+		Billboard = billboard,
+		Position = data.Position,
+		Radius = Config.StarRadius,
+		Collected = false,
+	})
+end
+
+function Course:_buildRing(data)
+	local segments = {}
+	local radius = Config.RingRadius
+	local count = 14
+	local chord = 2 * radius * math.sin(math.pi / count) + 0.4
+	for i = 1, count do
+		local angle = (i / count) * math.pi * 2
+		local offset = Vector3.new(math.cos(angle) * radius, math.sin(angle) * radius, 0)
+		local segment = Instance.new("Part")
+		segment.Name = "RingSegment"
+		segment.Anchored = true
+		segment.CanCollide = false
+		segment.CanQuery = false
+		segment.CanTouch = false
+		segment.CastShadow = false
+		segment.Material = Enum.Material.Neon
+		segment.Color = Color3.fromRGB(0, 230, 255)
+		segment.Size = Vector3.new(1.2, chord, 1.2)
+		segment.CFrame = CFrame.new(data.Position + offset) * CFrame.Angles(0, 0, angle)
+		segment.Parent = self.Folder
+		table.insert(segments, segment)
+	end
+	table.insert(self.Rings, {
+		Data = data,
+		Segments = segments,
+		Position = data.Position,
+		Radius = radius,
+		Used = false,
+	})
+end
+
+-- Builds everything, yielding now and then so joining doesn't hitch.
+function Course:Build()
+	for index, data in self.Layout.Blocks do
+		self:_buildBlock(data)
+		if index % 400 == 0 then
+			task.wait()
+		end
+	end
+	for _, data in self.Layout.Stars do
+		self:_buildStar(data)
+	end
+	for _, data in self.Layout.Rings do
+		self:_buildRing(data)
+	end
+	self.Ready = true
+end
+
+-- Calls onBlock/onStar/onRing for everything touched by a sphere of `radius`
+-- moving from fromPos to toPos this step.
+function Course:Sweep(fromPos: Vector3, toPos: Vector3, radius: number, onBlock, onStar, onRing)
+	local d1, d2 = -fromPos.Z, -toPos.Z
+	local low = math.min(d1, d2) - radius - BUCKET
+	local high = math.max(d1, d2) + radius + BUCKET
+	for b = bucketOf(low), bucketOf(high) do
+		local list = self.Buckets[b]
+		if list then
+			for _, entry in list do
+				if not entry.Broken and distanceToSegment(entry.Position, fromPos, toPos) <= radius + entry.Radius then
+					onBlock(entry)
+				end
+			end
+		end
+	end
+
+	for _, star in self.Stars do
+		if not star.Collected then
+			local d = -star.Position.Z
+			if d >= low and d <= high and distanceToSegment(star.Position, fromPos, toPos) <= radius + star.Radius then
+				onStar(star)
+			end
+		end
+	end
+
+	for _, ring in self.Rings do
+		if not ring.Used then
+			local d = -ring.Position.Z
+			if d >= low and d <= high and distanceToSegment(ring.Position, fromPos, toPos) <= ring.Radius then
+				onRing(ring)
+			end
+		end
+	end
+end
+
+-- Every unbroken block within radius of a point (used by TNT).
+function Course:BlocksNear(center: Vector3, radius: number)
+	local found = {}
+	local d = -center.Z
+	for b = bucketOf(d - radius - BUCKET), bucketOf(d + radius + BUCKET) do
+		local list = self.Buckets[b]
+		if list then
+			for _, entry in list do
+				if not entry.Broken and (entry.Position - center).Magnitude <= radius then
+					table.insert(found, entry)
+				end
+			end
+		end
+	end
+	return found
+end
+
+-- Flings a block away along the flyer's velocity.
+function Course:Smash(entry, velocity: Vector3)
+	entry.Broken = true
+	local part: BasePart = entry.Part
+	part.CollisionGroup = "Debris"
+	part.Anchored = false
+	part.AssemblyLinearVelocity = velocity * 0.55
+		+ Vector3.new(rng:NextNumber(-18, 18), rng:NextNumber(14, 36), rng:NextNumber(-12, 12))
+	part.AssemblyAngularVelocity = Vector3.new(rng:NextNumber(-12, 12), rng:NextNumber(-12, 12), rng:NextNumber(-12, 12))
+	table.insert(self.Flung, { Entry = entry, Time = os.clock() })
+end
+
+function Course:CollectStar(star)
+	star.Collected = true
+	star.Part.Transparency = 1
+	star.Billboard.Enabled = false
+end
+
+function Course:UseRing(ring)
+	ring.Used = true
+	for _, segment in ring.Segments do
+		segment.Color = Color3.fromRGB(255, 220, 60)
+		segment.Transparency = 0.6
+	end
+end
+
+-- Hides flung blocks after a while and bobs nearby stars.
+function Course:Update(focus: Vector3?)
+	local now = os.clock()
+	for i = #self.Flung, 1, -1 do
+		local item = self.Flung[i]
+		if now - item.Time > FLING_TIME then
+			local part = item.Entry.Part
+			part.Anchored = true
+			part.Transparency = 1
+			part.CanCollide = false
+			table.remove(self.Flung, i)
+		end
+	end
+
+	if focus then
+		local bob = math.sin(now * 3) * 0.8
+		for _, star in self.Stars do
+			if not star.Collected and math.abs(star.Position.Z - focus.Z) < 250 then
+				star.Part.CFrame = CFrame.new(star.Position + Vector3.new(0, bob, 0))
+			end
+		end
+	end
+end
+
+function Course:Reset()
+	for _, entry in self.Blocks do
+		if entry.Broken or entry.Part.Transparency > 0 then
+			local part = entry.Part
+			part.Anchored = true
+			part.CFrame = entry.CFrame
+			part.Transparency = 0
+			part.CanCollide = true
+			part.CollisionGroup = "Default"
+			entry.Broken = false
+		end
+	end
+	table.clear(self.Flung)
+
+	for _, star in self.Stars do
+		star.Collected = false
+		star.Part.Transparency = 0
+		star.Part.CFrame = CFrame.new(star.Position)
+		star.Billboard.Enabled = true
+	end
+
+	for _, ring in self.Rings do
+		ring.Used = false
+		for _, segment in ring.Segments do
+			segment.Color = Color3.fromRGB(0, 230, 255)
+			segment.Transparency = 0
+		end
+	end
+end
+
+return Course
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="15">
+          <Properties>
+            <string name="Name">Effects</string>
+            <string name="Source"><![CDATA[--[[
+	Client-only juice: sounds, camera shake, speed lines, screen flashes and
+	floating "+coins" numbers. Everything respects the player's settings.
+]]
+
+local Debris = game:GetService("Debris")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Widgets = require(script.Parent.Widgets)
+
+local Effects = {}
+
+Effects.Settings = table.clone(Config.DefaultSettings)
+
+local sounds = {} -- [name] = Sound template
+local wind: Sound? = nil
+local music: Sound? = nil
+local lastPlayed = {} -- [name] = os.clock()
+
+local shakeAmount = 0
+local speedGui: ScreenGui? = nil
+local speedLines = {}
+local flashFrame: Frame? = nil
+local floatingCount = 0
+local rng = Random.new()
+
+local function makeSound(name: string, id: string, volume: number, looped: boolean?): Sound?
+	if id == "" then
+		return nil
+	end
+	local sound = Instance.new("Sound")
+	sound.Name = "Sling_" .. name
+	sound.SoundId = id
+	sound.Volume = volume
+	sound.Looped = looped == true
+	sound.Parent = SoundService
+	return sound
+end
+
+function Effects.Init(playerGui: PlayerGui)
+	sounds.Launch = makeSound("Launch", Config.Sounds.Launch, 0.8)
+	sounds.Smash = makeSound("Smash", Config.Sounds.Smash, 0.45)
+	sounds.Coin = makeSound("Coin", Config.Sounds.Coin, 0.35)
+	sounds.Click = makeSound("Click", Config.Sounds.Click, 0.25)
+	wind = makeSound("Wind", Config.Sounds.Wind, 0, true)
+	music = makeSound("Music", Config.Sounds.Music, 0.35, true)
+
+	local gui = Widgets.new("ScreenGui", {
+		Name = "SlingEffects",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		DisplayOrder = -1,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		Enabled = false,
+		Parent = playerGui,
+	})
+	speedGui = gui
+
+	for i = 1, 26 do
+		local line = Widgets.new("Frame", {
+			Name = "Line" .. i,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			Size = UDim2.fromOffset(3, rng:NextInteger(70, 180)),
+			BackgroundTransparency = 1,
+			Parent = gui,
+		})
+		table.insert(speedLines, {
+			Frame = line,
+			Angle = rng:NextNumber(0, math.pi * 2),
+			Radius = rng:NextNumber(0.2, 0.8),
+			Speed = rng:NextNumber(0.9, 1.6),
+		})
+	end
+
+	local flashGui = Widgets.new("ScreenGui", {
+		Name = "SlingFlash",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		DisplayOrder = 50,
+		Parent = playerGui,
+	})
+	flashFrame = Widgets.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = flashGui,
+	})
+
+	Effects.ApplySettings(Effects.Settings)
+end
+
+function Effects.ApplySettings(settings)
+	for key, value in settings do
+		Effects.Settings[key] = value
+	end
+	if music then
+		if Effects.Settings.Music then
+			if not music.IsPlaying then
+				music:Play()
+			end
+		else
+			music:Stop()
+		end
+	end
+	if not Effects.Settings.SpeedLines and speedGui then
+		speedGui.Enabled = false
+	end
+end
+
+-- Plays a one-shot sound; minGap throttles rapid repeats (e.g. smashes).
+function Effects.Play(name: string, pitch: number?, minGap: number?)
+	if not Effects.Settings.SFX then
+		return
+	end
+	local template = sounds[name]
+	if not template then
+		return
+	end
+	local now = os.clock()
+	if minGap and lastPlayed[name] and now - lastPlayed[name] < minGap then
+		return
+	end
+	lastPlayed[name] = now
+	local sound = template:Clone()
+	sound.PlaybackSpeed = pitch or 1
+	sound.Parent = SoundService
+	sound:Play()
+	Debris:AddItem(sound, 3)
+end
+
+-- Looping wind while flying; louder and higher pitched when fast.
+function Effects.SetWind(speedFraction: number)
+	if not wind then
+		return
+	end
+	if speedFraction <= 0 or not Effects.Settings.SFX then
+		if wind.IsPlaying then
+			wind:Stop()
+		end
+		return
+	end
+	if not wind.IsPlaying then
+		wind:Play()
+	end
+	wind.Volume = math.clamp(speedFraction, 0, 1) * 0.5
+	wind.PlaybackSpeed = 0.8 + math.clamp(speedFraction, 0, 1.5) * 0.5
+end
+
+function Effects.Shake(amount: number)
+	if Effects.Settings.CameraShake then
+		shakeAmount = math.max(shakeAmount, amount)
+	end
+end
+
+-- Returns a CFrame offset to multiply onto the camera this frame.
+function Effects.ShakeOffset(dt: number): CFrame
+	if shakeAmount < 0.01 then
+		shakeAmount = 0
+		return CFrame.identity
+	end
+	local a = shakeAmount
+	shakeAmount *= math.exp(-9 * dt)
+	return CFrame.new(rng:NextNumber(-a, a), rng:NextNumber(-a, a), 0)
+		* CFrame.Angles(0, 0, rng:NextNumber(-a, a) * 0.02)
+end
+
+-- intensity 0..1 controls how visible the speed lines are.
+function Effects.UpdateSpeedLines(dt: number, intensity: number)
+	local gui = speedGui
+	if not gui then
+		return
+	end
+	if not Effects.Settings.SpeedLines or intensity <= 0.05 then
+		gui.Enabled = false
+		return
+	end
+	gui.Enabled = true
+	for _, line in speedLines do
+		line.Radius += dt * line.Speed * (0.6 + intensity * 1.4)
+		if line.Radius > 0.9 then
+			line.Radius = rng:NextNumber(0.25, 0.45)
+			line.Angle = rng:NextNumber(0, math.pi * 2)
+		end
+		local x = 0.5 + math.cos(line.Angle) * line.Radius * 0.62
+		local y = 0.5 + math.sin(line.Angle) * line.Radius * 0.62
+		line.Frame.Position = UDim2.fromScale(x, y)
+		line.Frame.Rotation = math.deg(line.Angle) + 90
+		line.Frame.BackgroundTransparency = 1 - math.clamp(intensity, 0, 1) * 0.55 * math.clamp((line.Radius - 0.2) * 2, 0, 1)
+	end
+end
+
+function Effects.HideSpeedLines()
+	if speedGui then
+		speedGui.Enabled = false
+	end
+end
+
+function Effects.Flash(color: Color3, strength: number?)
+	local frame = flashFrame
+	if not frame then
+		return
+	end
+	frame.BackgroundColor3 = color
+	frame.BackgroundTransparency = 1 - (strength or 0.4)
+	TweenService:Create(frame, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { BackgroundTransparency = 1 }):Play()
+end
+
+-- Invisible part at the origin that floating-text attachments hang off.
+local anchorPart: Part? = nil
+local function floatAnchor(): Part
+	if anchorPart and anchorPart.Parent then
+		return anchorPart
+	end
+	local created = Instance.new("Part")
+	created.Name = "SlingFloatAnchor"
+	created.Anchored = true
+	created.CanCollide = false
+	created.CanQuery = false
+	created.CanTouch = false
+	created.Transparency = 1
+	created.Size = Vector3.new(0.2, 0.2, 0.2)
+	created.CFrame = CFrame.new()
+	created.Parent = Workspace
+	anchorPart = created
+	return created
+end
+
+-- Floating text in the world (e.g. "+1.4K") that rises and fades.
+function Effects.FloatText(position: Vector3, text: string, color: Color3, size: number?)
+	if floatingCount > 30 then
+		return
+	end
+	floatingCount += 1
+
+	local attachment = Instance.new("Attachment")
+	attachment.Position = position
+	attachment.Parent = floatAnchor()
+
+	local scale = size or 1
+	local billboard = Widgets.new("BillboardGui", {
+		Size = UDim2.fromOffset(170 * scale, 54 * scale),
+		AlwaysOnTop = true,
+		LightInfluence = 0,
+		MaxDistance = 400,
+		Adornee = attachment,
+		Parent = attachment,
+	})
+	local label = Widgets.Label({
+		Text = text,
+		Size = UDim2.fromScale(1, 1),
+		TextColor3 = color,
+		StrokeThickness = 3,
+		Parent = billboard,
+	})
+
+	local info = TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(billboard, info, { StudsOffsetWorldSpace = Vector3.new(0, 6, 0) }):Play()
+	TweenService:Create(label, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		TextTransparency = 1,
+	}):Play()
+	local stroke = label:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		TweenService:Create(stroke, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+		}):Play()
+	end
+
+	task.delay(0.95, function()
+		floatingCount -= 1
+		attachment:Destroy()
+	end)
+end
+
+-- Client-side explosion: purely visual, never hurts anyone.
+function Effects.Explosion(position: Vector3, radius: number)
+	local explosion = Instance.new("Explosion")
+	explosion.Position = position
+	explosion.BlastRadius = radius
+	explosion.BlastPressure = 0
+	explosion.DestroyJointRadiusPercent = 0
+	explosion.ExplosionType = Enum.ExplosionType.NoCraters
+	explosion.Parent = Workspace
+end
+
+return Effects
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="16">
+          <Properties>
+            <string name="Name">UI</string>
+            <string name="Source"><![CDATA[--[[
+	All 2D interface: lobby buttons, side menu, coin counter, power bar, flight
+	HUD, results screen and the Shop / Rebirth / Stats / Settings panels.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Format)
+local UpgradeTree = require(script.Parent.UpgradeTree)
+local Widgets = require(script.Parent.Widgets)
+
+local UI = {}
+
+local C = Widgets.Colors
+local actions: { [string]: any } = {}
+local gui: ScreenGui
+local mode = "Lobby"
+local data = nil
+
+local refs: { [string]: any } = {} -- named GuiObjects
+local panels = {} -- [name] = Frame
+local settingButtons = {} -- [key] = { Button, Label }
+local shopRows = {} -- [trailId] = { Button, Label, Price }
+local statLabels = {} -- [key] = TextLabel
+local rebirthRefs: { [string]: any } = {}
+
+local displayedRunCoins = 0
+local targetRunCoins = 0
+local displayedCoins = 0
+local targetCoins = 0
+
+local function isTouchOnly(): boolean
+	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+
+local function pill(props: { [string]: any }): Frame
+	local frame = Widgets.new("Frame", {
+		Name = props.Name,
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		Position = props.Position,
+		Size = props.Size,
+		BackgroundColor3 = props.Color or C.Dark,
+		BackgroundTransparency = props.Transparency or 0.2,
+		Visible = props.Visible ~= false,
+		Parent = props.Parent,
+	})
+	Widgets.Corner(frame, props.Corner or 14)
+	Widgets.Stroke(frame, Color3.fromRGB(0, 0, 0), 2)
+	return frame
+end
+
+--------------------------------------------------------------------------------
+-- Lobby: top buttons, side menu, coins
+--------------------------------------------------------------------------------
+
+local function buildLobby()
+	local top = Widgets.new("Frame", {
+		Name = "TopButtons",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 8),
+		Size = UDim2.fromOffset(440, 72),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	Widgets.AutoScale(top)
+	refs.TopButtons = top
+	local launch = Widgets.Button({
+		Text = "🎯 Launch",
+		Color = C.Blue,
+		Size = UDim2.fromOffset(212, 68),
+		Parent = top,
+	})
+	launch.Activated:Connect(function()
+		actions.Launch()
+	end)
+	local upgrade = Widgets.Button({
+		Text = "⬆️ Upgrade",
+		Color = C.Green,
+		Position = UDim2.fromOffset(228, 0),
+		Size = UDim2.fromOffset(212, 68),
+		Parent = top,
+	})
+	upgrade.Activated:Connect(function()
+		UI.OpenPanel("Upgrades")
+	end)
+
+	local menu = Widgets.new("Frame", {
+		Name = "SideMenu",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 12, 0.5, 0),
+		Size = UDim2.fromOffset(190, 296),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	Widgets.AutoScale(menu)
+	refs.SideMenu = menu
+	Widgets.new("UIGridLayout", {
+		CellSize = UDim2.fromOffset(90, 90),
+		CellPadding = UDim2.fromOffset(10, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = menu,
+	})
+
+	local tiles = {
+		{ "Shop", "🛒", "Shop" },
+		{ "Upgrades", "⬆️", "Upgrades" },
+		{ "Rebirth", "🔄", "Rebirth" },
+		{ "Index", "📖", nil },
+		{ "Stats", "📊", "Stats" },
+		{ "Settings", "⚙️", "Settings" },
+	}
+	for order, tile in tiles do
+		local name, icon, panelName = tile[1], tile[2], tile[3]
+		local button = Widgets.new("TextButton", {
+			Name = name,
+			Text = "",
+			AutoButtonColor = false,
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			LayoutOrder = order,
+			Parent = menu,
+		})
+		Widgets.Corner(button, 14)
+		Widgets.Stroke(button, Color3.fromRGB(20, 24, 36), 3)
+		Widgets.Gradient(button, Color3.fromRGB(110, 128, 160), Color3.fromRGB(64, 74, 100))
+		Widgets.Label({
+			Text = icon,
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, 8),
+			Size = UDim2.fromOffset(50, 50),
+			StrokeThickness = 0,
+			Parent = button,
+		})
+		Widgets.Label({
+			Text = name,
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -6),
+			Size = UDim2.new(1, -8, 0, 22),
+			Parent = button,
+		})
+
+		local badge = Widgets.new("Frame", {
+			Name = "Badge",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -6, 0, 6),
+			Size = UDim2.fromOffset(26, 26),
+			BackgroundColor3 = C.Red,
+			Visible = false,
+			ZIndex = 3,
+			Parent = button,
+		})
+		Widgets.Round(badge)
+		Widgets.Stroke(badge, Color3.new(1, 1, 1), 2)
+		Widgets.Label({ Text = "!", Size = UDim2.fromScale(0.8, 0.8), Position = UDim2.fromScale(0.1, 0.1), ZIndex = 4, Parent = badge })
+		refs[name .. "Badge"] = badge
+
+		if not panelName then
+			local soon = Widgets.new("Frame", {
+				Name = "Soon",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(0.5, 0, 0, 2),
+				Size = UDim2.fromOffset(56, 22),
+				BackgroundColor3 = C.Yellow,
+				ZIndex = 3,
+				Parent = button,
+			})
+			Widgets.Corner(soon, 8)
+			Widgets.Stroke(soon, Widgets.Darken(C.Yellow, 0.5), 2)
+			Widgets.Label({ Text = "SOON", Size = UDim2.fromScale(1, 1), ZIndex = 4, StrokeThickness = 1.5, Parent = soon })
+		end
+
+		button.Activated:Connect(function()
+			actions.Click()
+			if panelName then
+				UI.OpenPanel(panelName)
+			else
+				UI.Toast("Coming soon!")
+			end
+		end)
+	end
+
+	-- Bottom-left coins + best.
+	local wallet = Widgets.new("Frame", {
+		Name = "Wallet",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 14, 1, -14),
+		Size = UDim2.fromOffset(250, 100),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	Widgets.AutoScale(wallet)
+	refs.Wallet = wallet
+	local coins = pill({ Name = "Coins", Size = UDim2.fromOffset(250, 58), Parent = wallet })
+	Widgets.Label({ Text = "⭐", Position = UDim2.fromOffset(6, 5), Size = UDim2.fromOffset(48, 48), StrokeThickness = 0, Parent = coins })
+	refs.Coins = Widgets.Label({
+		Text = "0",
+		Position = UDim2.fromOffset(60, 7),
+		Size = UDim2.new(1, -70, 1, -14),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = C.Coin,
+		StrokeThickness = 3,
+		Parent = coins,
+	})
+	refs.Best = Widgets.Label({
+		Text = "🏆 BEST 0",
+		Position = UDim2.fromOffset(4, 64),
+		Size = UDim2.fromOffset(240, 32),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Color3.fromRGB(140, 255, 100),
+		StrokeThickness = 3,
+		Parent = wallet,
+	})
+end
+
+--------------------------------------------------------------------------------
+-- In-run HUD: run coins, combo, distance, hint, power bar, pop text
+--------------------------------------------------------------------------------
+
+local function buildRunHud()
+	local runCoins = pill({
+		Name = "RunCoins",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 8),
+		Size = UDim2.fromOffset(230, 58),
+		Visible = false,
+		Parent = gui,
+	})
+	Widgets.AutoScale(runCoins)
+	Widgets.Label({ Text = "⭐", Position = UDim2.fromOffset(8, 6), Size = UDim2.fromOffset(46, 46), StrokeThickness = 0, Parent = runCoins })
+	refs.RunCoinsLabel = Widgets.Label({
+		Text = "0",
+		Position = UDim2.fromOffset(60, 8),
+		Size = UDim2.new(1, -72, 1, -16),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		StrokeThickness = 3,
+		Parent = runCoins,
+	})
+	refs.RunCoins = runCoins
+
+	local combo = Widgets.new("Frame", {
+		Name = "Combo",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 76),
+		Size = UDim2.fromOffset(170, 82),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Visible = false,
+		Parent = gui,
+	})
+	Widgets.Corner(combo, 14)
+	Widgets.Gradient(combo, Color3.fromRGB(255, 120, 200), Color3.fromRGB(220, 40, 140))
+	Widgets.Stroke(combo, Color3.fromRGB(90, 10, 60), 3)
+	Widgets.AutoScale(combo)
+	Widgets.Label({ Text = "🔥", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(0, 4), Size = UDim2.fromOffset(40, 40), StrokeThickness = 0, Parent = combo })
+	Widgets.Label({ Text = "COMBO", Position = UDim2.fromOffset(0, 4), Size = UDim2.new(1, 0, 0, 20), Parent = combo })
+	refs.ComboLabel = Widgets.Label({
+		Text = "x2",
+		Position = UDim2.fromOffset(0, 24),
+		Size = UDim2.new(1, 0, 0, 40),
+		StrokeThickness = 3,
+		Parent = combo,
+	})
+	local barBack = Widgets.new("Frame", {
+		Position = UDim2.new(0, 14, 1, -14),
+		Size = UDim2.new(1, -28, 0, 7),
+		BackgroundColor3 = Color3.fromRGB(110, 20, 70),
+		Parent = combo,
+	})
+	Widgets.Round(barBack)
+	refs.ComboBar = Widgets.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Parent = barBack,
+	})
+	Widgets.Round(refs.ComboBar)
+	refs.Combo = combo
+
+	local distance = pill({
+		Name = "Distance",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 8),
+		Size = UDim2.fromOffset(220, 62),
+		Visible = false,
+		Parent = gui,
+	})
+	Widgets.AutoScale(distance)
+	Widgets.Label({ Text = "🏁", Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(44, 44), StrokeThickness = 0, Parent = distance })
+	refs.DistanceLabel = Widgets.Label({
+		Text = "0",
+		Position = UDim2.fromOffset(58, 4),
+		Size = UDim2.new(1, -70, 0, 40),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		StrokeThickness = 3,
+		Parent = distance,
+	})
+	Widgets.Label({
+		Text = "STUDS",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -10, 1, -4),
+		Size = UDim2.fromOffset(70, 18),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = distance,
+	})
+	refs.Distance = distance
+
+	local hint = pill({
+		Name = "Hint",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -18),
+		Size = UDim2.fromOffset(340, 48),
+		Visible = false,
+		Parent = gui,
+	})
+	Widgets.AutoScale(hint)
+	refs.HintLabel = Widgets.Label({
+		Text = "A / D TO STEER",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, -24, 1, -14),
+		Parent = hint,
+	})
+	refs.Hint = hint
+
+	-- Power bar. The whole panel is a button so phones can press and hold it.
+	local power = Widgets.new("TextButton", {
+		Name = "Power",
+		Text = "",
+		AutoButtonColor = false,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -18),
+		Size = UDim2.fromOffset(470, 128),
+		BackgroundColor3 = C.Panel,
+		Visible = false,
+		Parent = gui,
+	})
+	Widgets.Corner(power, 16)
+	Widgets.Stroke(power, C.PanelStroke, 4)
+	Widgets.AutoScale(power)
+	refs.Power = power
+
+	local tag = Widgets.new("Frame", {
+		Position = UDim2.fromOffset(16, -18),
+		Size = UDim2.fromOffset(140, 38),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ZIndex = 2,
+		Parent = power,
+	})
+	Widgets.Corner(tag, 10)
+	Widgets.Gradient(tag, Color3.fromRGB(130, 240, 90), Color3.fromRGB(60, 180, 40))
+	Widgets.Stroke(tag, Color3.fromRGB(20, 70, 10), 3)
+	Widgets.Label({ Text = "⚡ POWER", Size = UDim2.new(1, -12, 1, -8), Position = UDim2.fromOffset(6, 4), ZIndex = 3, Parent = tag })
+
+	refs.PowerPercent = Widgets.Label({
+		Text = "0%",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -18, 0, 10),
+		Size = UDim2.fromOffset(120, 34),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		StrokeThickness = 3,
+		Parent = power,
+	})
+
+	local bar = Widgets.new("Frame", {
+		Name = "Bar",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 50),
+		Size = UDim2.new(1, -36, 0, 36),
+		BackgroundColor3 = Color3.fromRGB(40, 26, 18),
+		ClipsDescendants = true,
+		Parent = power,
+	})
+	Widgets.Corner(bar, 8)
+	Widgets.Stroke(bar, C.PanelStroke, 3)
+	local fill = Widgets.new("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Parent = bar,
+	})
+	Widgets.Corner(fill, 8)
+	refs.PowerGradient = Widgets.Rainbow(fill)
+	refs.PowerFill = fill
+	for i = 1, 19 do
+		Widgets.new("Frame", {
+			Position = UDim2.new(i / 20, -1, 0, 0),
+			Size = UDim2.new(0, 2, 1, 0),
+			BackgroundColor3 = Color3.fromRGB(30, 20, 14),
+			BackgroundTransparency = 0.5,
+			BorderSizePixel = 0,
+			ZIndex = 2,
+			Parent = bar,
+		})
+	end
+
+	refs.PowerStatus = Widgets.Label({
+		Text = "HOLD TO CHARGE",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -8),
+		Size = UDim2.new(1, -40, 0, 28),
+		TextColor3 = Color3.fromRGB(255, 226, 120),
+		Parent = power,
+	})
+
+	local cancel = Widgets.Button({
+		Name = "Cancel",
+		Text = "X",
+		Color = C.Red,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(1, 14, 0.5, 0),
+		Size = UDim2.fromOffset(58, 58),
+		Parent = power,
+	})
+	cancel.Activated:Connect(function()
+		actions.Cancel()
+	end)
+
+	-- Big centre pop text ("MAX POWER!", "CRITICAL!") and a zone banner.
+	local pop = Widgets.Label({
+		Name = "Pop",
+		Text = "",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.33),
+		Size = UDim2.fromOffset(640, 96),
+		StrokeThickness = 5,
+		Visible = false,
+		ZIndex = 10,
+		Parent = gui,
+	})
+	Widgets.AutoScale(pop)
+	refs.PopGradient = Widgets.new("UIGradient", { Rotation = 90, Parent = pop })
+	refs.Pop = pop
+
+	local banner = Widgets.Label({
+		Name = "Banner",
+		Text = "",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.2),
+		Size = UDim2.fromOffset(560, 64),
+		TextColor3 = C.Header,
+		StrokeThickness = 4,
+		Visible = false,
+		ZIndex = 10,
+		Parent = gui,
+	})
+	Widgets.AutoScale(banner)
+	refs.Banner = banner
+
+	local toast = pill({
+		Name = "Toast",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 92),
+		Size = UDim2.fromOffset(440, 46),
+		Visible = false,
+		Parent = gui,
+	})
+	toast.ZIndex = 60
+	Widgets.AutoScale(toast)
+	refs.ToastLabel = Widgets.Label({
+		Text = "",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, -24, 1, -12),
+		ZIndex = 61,
+		Parent = toast,
+	})
+	refs.Toast = toast
+end
+
+--------------------------------------------------------------------------------
+-- Results
+--------------------------------------------------------------------------------
+
+local function statBox(parent: Instance, x: number, icon: string): TextLabel
+	local box = pill({
+		Position = UDim2.fromOffset(x, 0),
+		Size = UDim2.fromOffset(132, 52),
+		Color = C.PanelDark,
+		Transparency = 0,
+		Corner = 10,
+		Parent = parent,
+	})
+	box.ZIndex = 22
+	Widgets.Label({ Text = icon, Position = UDim2.fromOffset(6, 8), Size = UDim2.fromOffset(36, 36), StrokeThickness = 0, ZIndex = 23, Parent = box })
+	return Widgets.Label({
+		Text = "0",
+		Position = UDim2.fromOffset(46, 8),
+		Size = UDim2.new(1, -54, 1, -16),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 23,
+		Parent = box,
+	})
+end
+
+local function buildResults()
+	local panel, content, close = Widgets.Panel(gui, "🏆 Launch Complete!", Vector2.new(470, 440))
+	panels.Results = panel
+	close.Activated:Connect(function()
+		actions.Return()
+	end)
+
+	refs.ResultTitle = Widgets.Label({
+		Text = "NICE LAUNCH!",
+		Size = UDim2.new(1, 0, 0, 46),
+		TextColor3 = C.Header,
+		StrokeThickness = 3,
+		ZIndex = 22,
+		Parent = content,
+	})
+	refs.ResultGradient = Widgets.Rainbow(refs.ResultTitle)
+	Widgets.Label({
+		Text = "You earned:",
+		Position = UDim2.fromOffset(0, 50),
+		Size = UDim2.new(1, 0, 0, 26),
+		ZIndex = 22,
+		Parent = content,
+	})
+	refs.ResultEarned = Widgets.Label({
+		Text = "⭐ +0",
+		Position = UDim2.fromOffset(0, 80),
+		Size = UDim2.new(1, 0, 0, 58),
+		TextColor3 = Color3.fromRGB(120, 255, 90),
+		StrokeThickness = 4,
+		ZIndex = 22,
+		Parent = content,
+	})
+	refs.ResultBreakdown = Widgets.Label({
+		Text = "",
+		Position = UDim2.fromOffset(0, 140),
+		Size = UDim2.new(1, 0, 0, 22),
+		TextColor3 = Color3.fromRGB(255, 230, 190),
+		StrokeThickness = 0,
+		ZIndex = 22,
+		Parent = content,
+	})
+
+	local row = Widgets.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 176),
+		Size = UDim2.fromOffset(420, 52),
+		BackgroundTransparency = 1,
+		ZIndex = 22,
+		Parent = content,
+	})
+	refs.ResultDistance = statBox(row, 0, "🏁")
+	refs.ResultSmashes = statBox(row, 144, "🔨")
+	refs.ResultCombo = statBox(row, 288, "🔥")
+
+	local retry = Widgets.Button({
+		Text = "Retry",
+		Color = C.Green,
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 6, 1, 0),
+		Size = UDim2.fromOffset(200, 66),
+		ZIndex = 22,
+		Parent = content,
+	})
+	retry.Activated:Connect(function()
+		actions.Retry()
+	end)
+	local back = Widgets.Button({
+		Text = "Return",
+		Color = C.Yellow,
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -6, 1, 0),
+		Size = UDim2.fromOffset(200, 66),
+		ZIndex = 22,
+		Parent = content,
+	})
+	back.Activated:Connect(function()
+		actions.Return()
+	end)
+end
+
+--------------------------------------------------------------------------------
+-- Shop (trails)
+--------------------------------------------------------------------------------
+
+local function buildShop()
+	local panel, content, close = Widgets.Panel(gui, "🛒 Trail Shop", Vector2.new(540, 480))
+	panels.Shop = panel
+	close.Activated:Connect(UI.ClosePanels)
+
+	local list = Widgets.new("ScrollingFrame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 8,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		ZIndex = 22,
+		Parent = content,
+	})
+	Widgets.new("UIListLayout", {
+		Padding = UDim.new(0, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = list,
+	})
+
+	for order, trail in Config.Trails do
+		local row = Widgets.new("Frame", {
+			Name = trail.Id,
+			Size = UDim2.new(1, -14, 0, 76),
+			BackgroundColor3 = C.PanelDark,
+			LayoutOrder = order,
+			ZIndex = 22,
+			Parent = list,
+		})
+		Widgets.Corner(row, 12)
+		Widgets.Stroke(row, C.PanelStroke, 2)
+
+		local swatch = Widgets.new("Frame", {
+			Position = UDim2.fromOffset(10, 10),
+			Size = UDim2.fromOffset(56, 56),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			ZIndex = 23,
+			Parent = row,
+		})
+		Widgets.Corner(swatch, 10)
+		Widgets.Stroke(swatch, Color3.fromRGB(0, 0, 0), 2)
+		if trail.Colors then
+			local keypoints = {}
+			for i, color in trail.Colors do
+				table.insert(keypoints, ColorSequenceKeypoint.new((i - 1) / math.max(1, #trail.Colors - 1), color))
+			end
+			if #keypoints == 1 then
+				table.insert(keypoints, ColorSequenceKeypoint.new(1, trail.Colors[1]))
+			end
+			Widgets.new("UIGradient", { Color = ColorSequence.new(keypoints), Rotation = 45, Parent = swatch })
+		else
+			swatch.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
+			Widgets.Label({ Text = "✖", Size = UDim2.fromScale(0.7, 0.7), Position = UDim2.fromScale(0.15, 0.15), ZIndex = 24, Parent = swatch })
+		end
+
+		Widgets.Label({
+			Text = trail.Name,
+			Position = UDim2.fromOffset(78, 8),
+			Size = UDim2.fromOffset(220, 32),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = 23,
+			Parent = row,
+		})
+		local price = Widgets.Label({
+			Text = if trail.Price > 0 then "⭐ " .. Format.Coins(trail.Price) else "Free",
+			Position = UDim2.fromOffset(78, 42),
+			Size = UDim2.fromOffset(220, 24),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = C.Coin,
+			ZIndex = 23,
+			Parent = row,
+		})
+		local button, label = Widgets.Button({
+			Text = "Buy",
+			Color = C.Green,
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -10, 0.5, 0),
+			Size = UDim2.fromOffset(150, 54),
+			ZIndex = 23,
+			Parent = row,
+		})
+		button.Activated:Connect(function()
+			if not data then
+				return
+			end
+			if data.Trails[trail.Id] then
+				actions.EquipTrail(trail.Id)
+			else
+				actions.BuyTrail(trail.Id)
+			end
+		end)
+		shopRows[trail.Id] = { Button = button, Label = label, Price = price }
+	end
+end
+
+local function refreshShop()
+	if not data then
+		return
+	end
+	for _, trail in Config.Trails do
+		local row = shopRows[trail.Id]
+		local owned = data.Trails[trail.Id] == true
+		if data.EquippedTrail == trail.Id then
+			row.Label.Text = "Equipped"
+			Widgets.SetButtonColor(row.Button, C.Blue)
+		elseif owned then
+			row.Label.Text = "Equip"
+			Widgets.SetButtonColor(row.Button, C.Yellow)
+		elseif data.Coins >= trail.Price then
+			row.Label.Text = "Buy"
+			Widgets.SetButtonColor(row.Button, C.Green)
+		else
+			row.Label.Text = "Buy"
+			Widgets.SetButtonColor(row.Button, C.Grey)
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Rebirth
+--------------------------------------------------------------------------------
+
+local function buildRebirth()
+	local panel, content, close = Widgets.Panel(gui, "🔄 Rebirth", Vector2.new(480, 430))
+	panels.Rebirth = panel
+	close.Activated:Connect(UI.ClosePanels)
+
+	rebirthRefs.Count = Widgets.Label({
+		Text = "Rebirths: 0",
+		Size = UDim2.new(1, 0, 0, 40),
+		StrokeThickness = 3,
+		ZIndex = 22,
+		Parent = content,
+	})
+	rebirthRefs.Bonus = Widgets.Label({
+		Text = "",
+		Position = UDim2.fromOffset(0, 50),
+		Size = UDim2.new(1, 0, 0, 34),
+		TextColor3 = Color3.fromRGB(140, 255, 100),
+		ZIndex = 22,
+		Parent = content,
+	})
+	rebirthRefs.Cost = Widgets.Label({
+		Text = "",
+		Position = UDim2.fromOffset(0, 92),
+		Size = UDim2.new(1, 0, 0, 34),
+		TextColor3 = C.Coin,
+		ZIndex = 22,
+		Parent = content,
+	})
+	Widgets.Label({
+		Text = "Resets your coins and upgrades.\nKeeps trails, stats and your best distance.",
+		Position = UDim2.fromOffset(0, 140),
+		Size = UDim2.new(1, 0, 0, 60),
+		TextWrapped = true,
+		TextColor3 = Color3.fromRGB(255, 220, 190),
+		StrokeThickness = 0,
+		MaxTextSize = 22,
+		ZIndex = 22,
+		Parent = content,
+	})
+	local button, label = Widgets.Button({
+		Text = "Rebirth",
+		Color = C.Purple,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.fromOffset(260, 70),
+		ZIndex = 22,
+		Parent = content,
+	})
+	rebirthRefs.Button = button
+	rebirthRefs.ButtonLabel = label
+	button.Activated:Connect(function()
+		actions.Rebirth()
+	end)
+end
+
+local function refreshRebirth()
+	if not data then
+		return
+	end
+	local cost = Config.RebirthCost(data.Rebirths)
+	rebirthRefs.Count.Text = "Rebirths: " .. data.Rebirths
+	rebirthRefs.Bonus.Text = string.format(
+		"Coin bonus: x%.1f → x%.1f",
+		Config.RebirthMultiplier(data.Rebirths),
+		Config.RebirthMultiplier(data.Rebirths + 1)
+	)
+	rebirthRefs.Cost.Text = "Cost: ⭐ " .. Format.Coins(cost)
+	local ready = data.Coins >= cost
+	rebirthRefs.ButtonLabel.Text = if ready then "Rebirth!" else "Need ⭐ " .. Format.Short(cost - data.Coins)
+	Widgets.SetButtonColor(rebirthRefs.Button, if ready then C.Purple else C.Grey)
+end
+
+--------------------------------------------------------------------------------
+-- Stats + Settings
+--------------------------------------------------------------------------------
+
+local STAT_ROWS = {
+	{ "Launches", "🚀 Launches" },
+	{ "BestDistance", "🏁 Best Distance" },
+	{ "TotalDistance", "📏 Total Distance" },
+	{ "TotalSmashes", "🔨 Blocks Smashed" },
+	{ "BestCombo", "🔥 Best Combo" },
+	{ "StarsCollected", "⭐ Stars Collected" },
+	{ "TotalCoins", "💰 Coins Earned" },
+	{ "Rebirths", "🔄 Rebirths" },
+}
+
+local function buildStats()
+	local panel, content, close = Widgets.Panel(gui, "📊 Stats", Vector2.new(460, 500))
+	panels.Stats = panel
+	close.Activated:Connect(UI.ClosePanels)
+	Widgets.new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
+	for order, row in STAT_ROWS do
+		local frame = Widgets.new("Frame", {
+			Size = UDim2.new(1, 0, 0, 44),
+			BackgroundColor3 = C.PanelDark,
+			LayoutOrder = order,
+			ZIndex = 22,
+			Parent = content,
+		})
+		Widgets.Corner(frame, 10)
+		Widgets.Label({
+			Text = row[2],
+			Position = UDim2.fromOffset(12, 6),
+			Size = UDim2.new(0.62, -12, 1, -12),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = 23,
+			Parent = frame,
+		})
+		statLabels[row[1]] = Widgets.Label({
+			Text = "0",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -12, 0, 6),
+			Size = UDim2.new(0.38, -12, 1, -12),
+			TextXAlignment = Enum.TextXAlignment.Right,
+			TextColor3 = C.Coin,
+			ZIndex = 23,
+			Parent = frame,
+		})
+	end
+end
+
+local function refreshStats()
+	if not data then
+		return
+	end
+	local values = {
+		Launches = Format.Commas(data.Stats.Launches),
+		BestDistance = Format.Commas(data.BestDistance) .. " studs",
+		TotalDistance = Format.Short(data.Stats.TotalDistance) .. " studs",
+		TotalSmashes = Format.Commas(data.Stats.TotalSmashes),
+		BestCombo = Format.Commas(data.Stats.BestCombo),
+		StarsCollected = Format.Commas(data.Stats.StarsCollected),
+		TotalCoins = Format.Coins(data.Stats.TotalCoins),
+		Rebirths = tostring(data.Rebirths),
+	}
+	for key, label in statLabels do
+		label.Text = values[key] or "0"
+	end
+end
+
+local function buildSettings()
+	local panel, content, close = Widgets.Panel(gui, "⚙️ Settings", Vector2.new(440, 420))
+	panels.Settings = panel
+	close.Activated:Connect(UI.ClosePanels)
+	Widgets.new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
+	for order, key in Config.SettingsOrder do
+		local frame = Widgets.new("Frame", {
+			Size = UDim2.new(1, 0, 0, 54),
+			BackgroundColor3 = C.PanelDark,
+			LayoutOrder = order,
+			ZIndex = 22,
+			Parent = content,
+		})
+		Widgets.Corner(frame, 10)
+		Widgets.Label({
+			Text = Config.SettingLabels[key],
+			Position = UDim2.fromOffset(14, 8),
+			Size = UDim2.new(1, -150, 1, -16),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = 23,
+			Parent = frame,
+		})
+		local button, label = Widgets.Button({
+			Text = "ON",
+			Color = C.Green,
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -10, 0.5, 0),
+			Size = UDim2.fromOffset(100, 42),
+			ZIndex = 23,
+			Parent = frame,
+		})
+		button.Activated:Connect(function()
+			if data then
+				actions.Setting(key, not data.Settings[key])
+			end
+		end)
+		settingButtons[key] = { Button = button, Label = label }
+	end
+end
+
+local function refreshSettings()
+	if not data then
+		return
+	end
+	for key, entry in settingButtons do
+		local on = data.Settings[key] ~= false
+		entry.Label.Text = if on then "ON" else "OFF"
+		Widgets.SetButtonColor(entry.Button, if on then C.Green else C.Red)
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Public API
+--------------------------------------------------------------------------------
+
+function UI.Init(playerGui: PlayerGui, callbacks)
+	actions = callbacks
+
+	gui = Widgets.new("ScreenGui", {
+		Name = "SlingHUD",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 5,
+		Parent = playerGui,
+	})
+
+	buildLobby()
+	buildRunHud()
+	buildResults()
+	buildShop()
+	buildRebirth()
+	buildStats()
+	buildSettings()
+	UpgradeTree.Init(gui, function(nodeId)
+		actions.BuyUpgrade(nodeId)
+	end)
+
+	-- Smoothly count coin labels up/down.
+	RunService.RenderStepped:Connect(function(dt)
+		local alpha = math.min(1, dt * 10)
+		if math.abs(targetRunCoins - displayedRunCoins) > 0.5 then
+			displayedRunCoins += (targetRunCoins - displayedRunCoins) * alpha
+			refs.RunCoinsLabel.Text = Format.Coins(math.floor(displayedRunCoins + 0.5))
+		end
+		if math.abs(targetCoins - displayedCoins) > 0.5 then
+			displayedCoins += (targetCoins - displayedCoins) * alpha
+			refs.Coins.Text = Format.Coins(math.floor(displayedCoins + 0.5))
+		end
+		if refs.PowerGradient then
+			refs.PowerGradient.Offset = Vector2.new(math.sin(os.clock() * 2) * 0.1, 0)
+		end
+	end)
+
+	UI.SetMode("Lobby")
+end
+
+function UI.PowerButton(): TextButton
+	return refs.Power
+end
+
+function UI.SetData(newData)
+	local first = data == nil
+	data = newData
+	targetCoins = data.Coins
+	if first then
+		displayedCoins = data.Coins
+		refs.Coins.Text = Format.Coins(data.Coins)
+	end
+	refs.Best.Text = "🏆 BEST " .. Format.Short(data.BestDistance)
+
+	refs.UpgradesBadge.Visible = UpgradeTree.HasAffordable(data)
+	refs.RebirthBadge.Visible = data.Coins >= Config.RebirthCost(data.Rebirths)
+
+	UpgradeTree.SetData(data)
+	refreshShop()
+	refreshRebirth()
+	refreshStats()
+	refreshSettings()
+	UI.RefreshHint()
+end
+
+function UI.ClosePanels()
+	for name, panel in panels do
+		if name ~= "Results" then
+			panel.Visible = false
+		end
+	end
+	UpgradeTree.Close()
+end
+
+function UI.OpenPanel(name: string)
+	if mode ~= "Lobby" and mode ~= "Results" then
+		return
+	end
+	local wasOpen = (name == "Upgrades" and UpgradeTree.IsOpen()) or (panels[name] and panels[name].Visible)
+	UI.ClosePanels()
+	if wasOpen then
+		return
+	end
+	if name == "Upgrades" then
+		UpgradeTree.Open()
+	elseif panels[name] then
+		panels[name].Visible = true
+		Widgets.PopIn(panels[name])
+	end
+end
+
+function UI.SetMode(newMode: string)
+	mode = newMode
+	local lobby = newMode == "Lobby"
+	local aiming = newMode == "Aiming"
+	local flying = newMode == "Flying"
+	local results = newMode == "Results"
+
+	refs.TopButtons.Visible = lobby
+	refs.SideMenu.Visible = lobby
+	refs.Wallet.Visible = true
+	refs.RunCoins.Visible = aiming or flying or results
+	refs.Distance.Visible = flying or results
+	refs.Power.Visible = aiming
+	refs.Combo.Visible = false
+	panels.Results.Visible = false
+	if not lobby then
+		UI.ClosePanels()
+	end
+	UI.RefreshHint()
+end
+
+function UI.RefreshHint()
+	local showHints = data == nil or data.Settings.Hints ~= false
+	refs.Hint.Visible = mode == "Flying" and showHints
+	refs.HintLabel.Text = if isTouchOnly() then "USE THE STICK TO STEER" else "A / D TO STEER"
+end
+
+-- stateName: "aim" | "charging"
+function UI.SetPower(power: number, stateName: string)
+	refs.PowerFill.Size = UDim2.fromScale(power, 1)
+	refs.PowerPercent.Text = math.floor(power * 100 + 0.5) .. "%"
+	if stateName == "charging" then
+		refs.PowerStatus.Text = "RELEASE TO LAUNCH!"
+	elseif isTouchOnly() then
+		refs.PowerStatus.Text = "PRESS & HOLD HERE TO CHARGE"
+	else
+		refs.PowerStatus.Text = "HOLD CLICK OR SPACE TO CHARGE"
+	end
+end
+
+function UI.SetRunCoins(value: number, instant: boolean?)
+	targetRunCoins = value
+	if instant then
+		displayedRunCoins = value
+		refs.RunCoinsLabel.Text = Format.Coins(value)
+	end
+end
+
+function UI.SetDistance(value: number)
+	refs.DistanceLabel.Text = Format.Commas(value)
+end
+
+function UI.SetCombo(multiplier: number, timeFraction: number, visible: boolean)
+	local combo = refs.Combo
+	if not visible then
+		combo.Visible = false
+		return
+	end
+	local text = "x" .. multiplier
+	if not combo.Visible or refs.ComboLabel.Text ~= text then
+		refs.ComboLabel.Text = text
+		combo.Visible = true
+		Widgets.PopIn(combo)
+	end
+	refs.ComboBar.Size = UDim2.fromScale(math.clamp(timeFraction, 0, 1), 1)
+end
+
+local popToken = 0
+local POP_STYLES = {
+	max = { Color3.fromRGB(120, 255, 120), Color3.fromRGB(60, 160, 255) },
+	crit = { Color3.fromRGB(255, 220, 90), Color3.fromRGB(255, 80, 40) },
+	boost = { Color3.fromRGB(140, 255, 255), Color3.fromRGB(0, 160, 255) },
+	best = { Color3.fromRGB(255, 120, 220), Color3.fromRGB(150, 90, 255) },
+	combo = { Color3.fromRGB(255, 160, 220), Color3.fromRGB(255, 60, 150) },
+}
+
+function UI.Pop(text: string, style: string?)
+	popToken += 1
+	local token = popToken
+	local pop = refs.Pop
+	local colors = POP_STYLES[style or "max"] or POP_STYLES.max
+	refs.PopGradient.Color = ColorSequence.new(colors[1], colors[2])
+	pop.Text = text
+	pop.TextTransparency = 0
+	pop.Visible = true
+	Widgets.PopIn(pop)
+	task.delay(0.9, function()
+		if token == popToken then
+			TweenService:Create(pop, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
+			task.wait(0.25)
+			if token == popToken then
+				pop.Visible = false
+			end
+		end
+	end)
+end
+
+local bannerToken = 0
+function UI.Banner(text: string)
+	bannerToken += 1
+	local token = bannerToken
+	local banner = refs.Banner
+	banner.Text = text
+	banner.Visible = true
+	Widgets.PopIn(banner)
+	task.delay(2, function()
+		if token == bannerToken then
+			banner.Visible = false
+		end
+	end)
+end
+
+local toastToken = 0
+function UI.Toast(text: string, color: Color3?)
+	toastToken += 1
+	local token = toastToken
+	refs.ToastLabel.Text = text
+	refs.ToastLabel.TextColor3 = color or C.Text
+	refs.Toast.Visible = true
+	Widgets.PopIn(refs.Toast)
+	task.delay(2.2, function()
+		if token == toastToken then
+			refs.Toast.Visible = false
+		end
+	end)
+end
+
+function UI.ShowResults(result, comboMultiplier: number)
+	local panel = panels.Results
+	refs.ResultTitle.Text = if result.NewBest then "NEW BEST!" else "NICE LAUNCH!"
+	refs.ResultGradient.Enabled = result.NewBest == true
+	refs.ResultTitle.TextColor3 = if result.NewBest then Color3.new(1, 1, 1) else C.Header
+	refs.ResultEarned.Text = "⭐ +" .. Format.Commas(result.Earned or 0)
+	if result.Failed then
+		refs.ResultBreakdown.Text = "Server didn't respond - nothing was saved"
+	else
+		refs.ResultBreakdown.Text = string.format(
+			"Smashing ⭐ %s  •  Distance ⭐ %s",
+			Format.Short(result.RunCoins or 0),
+			Format.Short(result.DistanceCoins or 0)
+		)
+	end
+	refs.ResultDistance.Text = Format.Commas(result.Distance or 0)
+	refs.ResultSmashes.Text = Format.Commas(result.Smashes or 0)
+	refs.ResultCombo.Text = "x" .. comboMultiplier
+	panel.Visible = true
+	Widgets.PopIn(panel)
+end
+
+function UI.HideResults()
+	panels.Results.Visible = false
+end
+
+return UI
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="17">
+          <Properties>
+            <string name="Name">UpgradeTree</string>
+            <string name="Source"><![CDATA[--[[
+	Full-screen hex upgrade tree. Drag to pan, scroll or 🔍 to zoom, tap a node
+	to see it in the info card and buy it.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Format)
+local Widgets = require(script.Parent.Widgets)
+
+local UpgradeTree = {}
+
+local HEX = 47 -- hex "radius" in pixels; neighbours are HEX * sqrt(3) apart
+local NODE_SIZE = 66
+local ZOOM_LEVELS = { 1, 0.75, 0.55 }
+
+local COLORS = {
+	Owned = { Color3.fromRGB(90, 190, 255), Color3.fromRGB(40, 110, 225) },
+	Available = { Color3.fromRGB(190, 110, 255), Color3.fromRGB(122, 52, 214) },
+	Locked = { Color3.fromRGB(84, 62, 120), Color3.fromRGB(52, 36, 80) },
+	Start = { Color3.fromRGB(90, 240, 220), Color3.fromRGB(30, 170, 180) },
+}
+
+local overlay: Frame
+local canvas: Frame
+local canvasScale: UIScale
+local coinsLabel: TextLabel
+local info = {}
+local nodeViews = {} -- [nodeId] = { Button, Gradient, Stroke, Icon, Line }
+local selectedId: string? = nil
+local currentData = nil
+local onBuy = nil
+local pan = Vector2.zero
+local zoomIndex = 1
+local pulseConnection: RBXScriptConnection? = nil
+
+local function hexToPixel(q: number, r: number): Vector2
+	return Vector2.new(HEX * math.sqrt(3) * (q + r / 2), HEX * 1.5 * r)
+end
+
+local function nodeState(node, data): string
+	if not data then
+		return "Locked"
+	end
+	if data.Upgrades[node.Id] then
+		return "Owned"
+	end
+	if node.Requires == "Start" or data.Upgrades[node.Requires] then
+		return "Available"
+	end
+	return "Locked"
+end
+
+local function applyCanvasTransform()
+	canvas.Position = UDim2.new(0.5, pan.X, 0.5, pan.Y)
+	canvasScale.Scale = Widgets.ViewportScale() * ZOOM_LEVELS[zoomIndex]
+end
+
+local function makeLine(fromPos: Vector2, toPos: Vector2): Frame
+	local delta = toPos - fromPos
+	local mid = (fromPos + toPos) / 2
+	return Widgets.new("Frame", {
+		Name = "Line",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, mid.X, 0.5, mid.Y),
+		Size = UDim2.fromOffset(delta.Magnitude, 9),
+		Rotation = math.deg(math.atan2(delta.Y, delta.X)),
+		BackgroundColor3 = Color3.fromRGB(50, 36, 70),
+		BorderSizePixel = 0,
+		ZIndex = 32,
+		Parent = canvas,
+	})
+end
+
+local function makeNode(node, isStart: boolean)
+	local pos = hexToPixel(node.Q, node.R)
+	local button = Widgets.new("TextButton", {
+		Name = node.Id,
+		Text = "",
+		AutoButtonColor = false,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, pos.X, 0.5, pos.Y),
+		Size = UDim2.fromOffset(NODE_SIZE, NODE_SIZE),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ZIndex = 34,
+		Parent = canvas,
+	})
+	Widgets.Round(button)
+	local colors = if isStart then COLORS.Start else COLORS.Locked
+	local gradient = Widgets.Gradient(button, colors[1], colors[2])
+	local stroke = Widgets.Stroke(button, Color3.fromRGB(30, 20, 46), 4)
+
+	local icon = Widgets.Label({
+		Name = "Icon",
+		Text = node.Icon,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.48),
+		Size = UDim2.fromScale(0.62, 0.62),
+		StrokeThickness = 0,
+		ZIndex = 35,
+		Parent = button,
+	})
+
+	if not isStart then
+		local badge = Widgets.new("Frame", {
+			Name = "Tier",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -8, 1, -8),
+			Size = UDim2.fromOffset(24, 24),
+			BackgroundColor3 = Color3.fromRGB(30, 22, 44),
+			ZIndex = 36,
+			Parent = button,
+		})
+		Widgets.Round(badge)
+		Widgets.Stroke(badge, Color3.fromRGB(255, 255, 255), 1.5)
+		Widgets.Label({
+			Text = tostring(node.Tier),
+			Size = UDim2.fromScale(0.8, 0.8),
+			Position = UDim2.fromScale(0.5, 0.5),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			StrokeThickness = 0,
+			ZIndex = 37,
+			Parent = badge,
+		})
+	end
+
+	button.Activated:Connect(function()
+		UpgradeTree.Select(node.Id)
+	end)
+
+	return {
+		Button = button,
+		Gradient = gradient,
+		Stroke = stroke,
+		Icon = icon,
+		Position = pos,
+	}
+end
+
+local function buildInfoCard(parent: Instance)
+	local card = Widgets.new("Frame", {
+		Name = "InfoCard",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -18, 0.5, 0),
+		Size = UDim2.fromOffset(270, 340),
+		BackgroundColor3 = Widgets.Colors.Panel,
+		Active = true, -- clicks on the card shouldn't start a pan
+		ZIndex = 40,
+		Parent = parent,
+	})
+	Widgets.Corner(card, 16)
+	Widgets.Stroke(card, Widgets.Colors.PanelStroke, 4)
+	Widgets.AutoScale(card)
+
+	info.Icon = Widgets.Label({
+		Text = "🎯",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 14),
+		Size = UDim2.fromOffset(70, 70),
+		StrokeThickness = 0,
+		ZIndex = 41,
+		Parent = card,
+	})
+	info.Name = Widgets.Label({
+		Text = "Start",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 90),
+		Size = UDim2.new(1, -24, 0, 34),
+		StrokeThickness = 3,
+		ZIndex = 41,
+		Parent = card,
+	})
+	info.Description = Widgets.Label({
+		Text = "",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 130),
+		Size = UDim2.new(1, -28, 0, 66),
+		TextWrapped = true,
+		TextColor3 = Color3.fromRGB(255, 236, 200),
+		MaxTextSize = 20,
+		StrokeThickness = 0,
+		ZIndex = 41,
+		Parent = card,
+	})
+	info.Status = Widgets.Label({
+		Text = "",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 202),
+		Size = UDim2.new(1, -28, 0, 30),
+		TextColor3 = Widgets.Colors.Coin,
+		MaxTextSize = 24,
+		ZIndex = 41,
+		Parent = card,
+	})
+	local buy, buyLabel = Widgets.Button({
+		Name = "Buy",
+		Text = "Buy",
+		Color = Widgets.Colors.Green,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -16),
+		Size = UDim2.fromOffset(220, 62),
+		ZIndex = 41,
+		Parent = card,
+	})
+	info.Buy = buy
+	info.BuyLabel = buyLabel
+	buy.Activated:Connect(function()
+		if selectedId and selectedId ~= "Start" and onBuy then
+			onBuy(selectedId)
+		end
+	end)
+end
+
+function UpgradeTree.Init(gui: ScreenGui, buyCallback)
+	onBuy = buyCallback
+
+	overlay = Widgets.new("Frame", {
+		Name = "UpgradeTree",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(16, 12, 28),
+		BackgroundTransparency = 0.25,
+		Active = true,
+		Visible = false,
+		ZIndex = 30,
+		Parent = gui,
+	})
+
+	local viewport = Widgets.new("Frame", {
+		Name = "Viewport",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		ZIndex = 31,
+		Parent = overlay,
+	})
+
+	canvas = Widgets.new("Frame", {
+		Name = "Canvas",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(1400, 1100),
+		BackgroundTransparency = 1,
+		ZIndex = 31,
+		Parent = viewport,
+	})
+	canvasScale = Widgets.new("UIScale", { Parent = canvas })
+
+	-- Lines first so they render under the nodes.
+	local startView = makeNode(Config.StartNode, true)
+	nodeViews.Start = startView
+	local lines = {}
+	for _, node in Config.Nodes do
+		local parentNode = Config.NodesById[node.Requires] or Config.StartNode
+		lines[node.Id] = makeLine(hexToPixel(parentNode.Q, parentNode.R), hexToPixel(node.Q, node.R))
+	end
+	for _, node in Config.Nodes do
+		local view = makeNode(node, false)
+		view.Line = lines[node.Id]
+		nodeViews[node.Id] = view
+	end
+
+	-- Drag to pan.
+	local dragging = false
+	local dragStart = Vector2.zero
+	local panStart = Vector2.zero
+	viewport.InputBegan:Connect(function(input: InputObject)
+		local inputType = input.UserInputType
+		if inputType == Enum.UserInputType.MouseButton1 or inputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = Vector2.new(input.Position.X, input.Position.Y)
+			panStart = pan
+		end
+	end)
+	viewport.InputChanged:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseWheel then
+			if input.Position.Z > 0 then
+				zoomIndex = math.max(1, zoomIndex - 1)
+			else
+				zoomIndex = math.min(#ZOOM_LEVELS, zoomIndex + 1)
+			end
+			applyCanvasTransform()
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input: InputObject)
+		if not dragging then
+			return
+		end
+		local inputType = input.UserInputType
+		if inputType == Enum.UserInputType.MouseMovement or inputType == Enum.UserInputType.Touch then
+			local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStart
+			pan = Vector2.new(math.clamp(panStart.X + delta.X, -700, 700), math.clamp(panStart.Y + delta.Y, -600, 600))
+			applyCanvasTransform()
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input: InputObject)
+		local inputType = input.UserInputType
+		if inputType == Enum.UserInputType.MouseButton1 or inputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+
+	-- Header: coins + title.
+	local top = Widgets.new("Frame", {
+		Name = "Top",
+		Size = UDim2.new(1, 0, 0, 70),
+		BackgroundTransparency = 1,
+		ZIndex = 40,
+		Parent = overlay,
+	})
+	local coinsPill = Widgets.new("Frame", {
+		Name = "Coins",
+		Position = UDim2.fromOffset(16, 12),
+		Size = UDim2.fromOffset(210, 52),
+		BackgroundColor3 = Widgets.Colors.Dark,
+		BackgroundTransparency = 0.2,
+		ZIndex = 40,
+		Parent = top,
+	})
+	Widgets.Corner(coinsPill, 14)
+	Widgets.Stroke(coinsPill, Color3.fromRGB(0, 0, 0), 2)
+	Widgets.AutoScale(coinsPill)
+	Widgets.Label({
+		Text = "⭐",
+		Position = UDim2.fromOffset(6, 4),
+		Size = UDim2.fromOffset(44, 44),
+		StrokeThickness = 0,
+		ZIndex = 41,
+		Parent = coinsPill,
+	})
+	coinsLabel = Widgets.Label({
+		Text = "0",
+		Position = UDim2.fromOffset(56, 6),
+		Size = UDim2.new(1, -66, 1, -12),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Widgets.Colors.Coin,
+		ZIndex = 41,
+		Parent = coinsPill,
+	})
+
+	local title = Widgets.new("Frame", {
+		Name = "Title",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 10),
+		Size = UDim2.fromOffset(420, 70),
+		BackgroundTransparency = 1,
+		ZIndex = 40,
+		Parent = top,
+	})
+	Widgets.AutoScale(title)
+	Widgets.Label({
+		Text = "UPGRADES",
+		Size = UDim2.new(1, 0, 0, 42),
+		TextColor3 = Widgets.Colors.Header,
+		StrokeThickness = 3,
+		ZIndex = 41,
+		Parent = title,
+	})
+	Widgets.Label({
+		Text = "Drag to explore • tap a node to buy",
+		Position = UDim2.fromOffset(0, 44),
+		Size = UDim2.new(1, 0, 0, 22),
+		TextColor3 = Color3.fromRGB(220, 210, 255),
+		ZIndex = 41,
+		Parent = title,
+	})
+
+	buildInfoCard(overlay)
+
+	-- Bottom: Close + zoom.
+	local bottom = Widgets.new("Frame", {
+		Name = "Bottom",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -14),
+		Size = UDim2.fromOffset(280, 64),
+		BackgroundTransparency = 1,
+		ZIndex = 40,
+		Parent = overlay,
+	})
+	Widgets.AutoScale(bottom)
+	local close = Widgets.Button({
+		Text = "Close",
+		Color = Widgets.Colors.Red,
+		Size = UDim2.fromOffset(200, 62),
+		ZIndex = 41,
+		Parent = bottom,
+	})
+	close.Activated:Connect(function()
+		UpgradeTree.Close()
+	end)
+	local zoom = Widgets.Button({
+		Text = "🔍",
+		Color = Widgets.Colors.Blue,
+		Position = UDim2.fromOffset(216, 0),
+		Size = UDim2.fromOffset(62, 62),
+		ZIndex = 41,
+		Parent = bottom,
+	})
+	zoom.Activated:Connect(function()
+		zoomIndex = zoomIndex % #ZOOM_LEVELS + 1
+		applyCanvasTransform()
+	end)
+
+	applyCanvasTransform()
+	UpgradeTree.Select("Start")
+end
+
+function UpgradeTree.Select(nodeId: string)
+	selectedId = nodeId
+	for id, view in nodeViews do
+		view.Button.Size = if id == nodeId
+			then UDim2.fromOffset(NODE_SIZE + 10, NODE_SIZE + 10)
+			else UDim2.fromOffset(NODE_SIZE, NODE_SIZE)
+	end
+
+	if nodeId == "Start" then
+		info.Icon.Text = Config.StartNode.Icon
+		info.Name.Text = "Slingshot"
+		info.Description.Text = "Your trusty slingshot. Every branch grows from here!"
+		info.Status.Text = ""
+		info.Buy.Visible = false
+		return
+	end
+
+	local node = Config.NodesById[nodeId]
+	if not node then
+		return
+	end
+	local data = currentData
+	local state = nodeState(node, data)
+	info.Icon.Text = node.Icon
+	info.Name.Text = node.Name
+	info.Description.Text = node.Description
+	info.Buy.Visible = true
+
+	if state == "Owned" then
+		info.Status.Text = "✅ Owned"
+		info.BuyLabel.Text = "Owned"
+		Widgets.SetButtonColor(info.Buy, Widgets.Colors.Blue)
+	elseif state == "Available" then
+		info.Status.Text = "⭐ " .. Format.Coins(node.Cost)
+		local affordable = data ~= nil and data.Coins >= node.Cost
+		info.BuyLabel.Text = if affordable then "Buy" else "Need more ⭐"
+		Widgets.SetButtonColor(info.Buy, if affordable then Widgets.Colors.Green else Widgets.Colors.Grey)
+	else
+		local required = Config.NodesById[node.Requires]
+		info.Status.Text = "🔒 Needs " .. (if required then required.Name else "previous")
+		info.BuyLabel.Text = "Locked"
+		Widgets.SetButtonColor(info.Buy, Widgets.Colors.Grey)
+	end
+end
+
+function UpgradeTree.SetData(data)
+	currentData = data
+	if not overlay then
+		return
+	end
+	coinsLabel.Text = Format.Coins(data.Coins)
+
+	for _, node in Config.Nodes do
+		local view = nodeViews[node.Id]
+		local state = nodeState(node, data)
+		local colors = COLORS[state]
+		view.Gradient.Color = ColorSequence.new(colors[1], colors[2])
+		view.Icon.TextTransparency = if state == "Locked" then 0.5 else 0
+		if state == "Owned" then
+			view.Stroke.Color = Color3.fromRGB(255, 255, 255)
+			view.Stroke.Thickness = 3
+			view.Line.BackgroundColor3 = Color3.fromRGB(255, 210, 60)
+		elseif state == "Available" then
+			view.Stroke.Color = Color3.fromRGB(255, 210, 60)
+			view.Stroke.Thickness = 4
+			view.Line.BackgroundColor3 = Color3.fromRGB(190, 150, 255)
+		else
+			view.Stroke.Color = Color3.fromRGB(30, 20, 46)
+			view.Stroke.Thickness = 4
+			view.Line.BackgroundColor3 = Color3.fromRGB(50, 36, 70)
+		end
+	end
+
+	if selectedId then
+		UpgradeTree.Select(selectedId)
+	end
+end
+
+-- True when at least one unlocked upgrade can be bought right now.
+function UpgradeTree.HasAffordable(data): boolean
+	if not data then
+		return false
+	end
+	for _, node in Config.Nodes do
+		if nodeState(node, data) == "Available" and data.Coins >= node.Cost then
+			return true
+		end
+	end
+	return false
+end
+
+function UpgradeTree.IsOpen(): boolean
+	return overlay ~= nil and overlay.Visible
+end
+
+function UpgradeTree.Open()
+	if not overlay then
+		return
+	end
+	overlay.Visible = true
+	applyCanvasTransform()
+	if currentData then
+		UpgradeTree.SetData(currentData)
+	end
+	-- Pick the cheapest thing you can buy so the card is useful immediately.
+	if currentData then
+		local best = nil
+		for _, node in Config.Nodes do
+			if nodeState(node, currentData) == "Available" and (best == nil or node.Cost < best.Cost) then
+				best = node
+			end
+		end
+		if best then
+			UpgradeTree.Select(best.Id)
+		end
+	end
+
+	if pulseConnection then
+		pulseConnection:Disconnect()
+	end
+	pulseConnection = RunService.Heartbeat:Connect(function()
+		local data = currentData
+		if not data then
+			return
+		end
+		local pulse = 4 + math.sin(os.clock() * 6) * 2
+		for _, node in Config.Nodes do
+			if nodeState(node, data) == "Available" and data.Coins >= node.Cost then
+				nodeViews[node.Id].Stroke.Thickness = pulse
+			end
+		end
+	end)
+end
+
+function UpgradeTree.Close()
+	if overlay then
+		overlay.Visible = false
+	end
+	if pulseConnection then
+		pulseConnection:Disconnect()
+		pulseConnection = nil
+	end
+end
+
+return UpgradeTree
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="18">
+          <Properties>
+            <string name="Name">Widgets</string>
+            <string name="Source"><![CDATA[--[[
+	Tiny UI kit: chunky cartoon panels, buttons and labels built from code.
+]]
+
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Widgets = {}
+
+Widgets.Font = Enum.Font.FredokaOne
+
+Widgets.Colors = {
+	Panel = Color3.fromRGB(96, 62, 42),
+	PanelDark = Color3.fromRGB(62, 40, 28),
+	PanelStroke = Color3.fromRGB(36, 22, 14),
+	Header = Color3.fromRGB(255, 206, 46),
+	Green = Color3.fromRGB(92, 214, 64),
+	Yellow = Color3.fromRGB(255, 196, 36),
+	Blue = Color3.fromRGB(64, 146, 255),
+	Red = Color3.fromRGB(236, 64, 64),
+	Purple = Color3.fromRGB(150, 80, 230),
+	Pink = Color3.fromRGB(255, 76, 170),
+	Grey = Color3.fromRGB(120, 120, 130),
+	Slate = Color3.fromRGB(70, 82, 104),
+	Text = Color3.fromRGB(255, 255, 255),
+	TextStroke = Color3.fromRGB(30, 18, 10),
+	Coin = Color3.fromRGB(255, 214, 60),
+	Dark = Color3.fromRGB(24, 24, 32),
+}
+
+local buttonColorSetters = setmetatable({}, { __mode = "k" }) -- [GuiButton] = function(Color3)
+local autoScales = {} -- list of { Scale: UIScale, Multiplier: number }
+local autoMultipliers = setmetatable({}, { __mode = "k" }) -- [UIScale] = multiplier
+
+function Widgets.new(className: string, props: { [string]: any }?, children: { Instance }?): any
+	local instance = Instance.new(className)
+	if props then
+		for key, value in props do
+			if key ~= "Parent" then
+				(instance :: any)[key] = value
+			end
+		end
+	end
+	if children then
+		for _, child in children do
+			child.Parent = instance
+		end
+	end
+	if props and props.Parent then
+		instance.Parent = props.Parent
+	end
+	return instance
+end
+
+function Widgets.Darken(color: Color3, amount: number): Color3
+	return color:Lerp(Color3.new(0, 0, 0), amount)
+end
+
+function Widgets.Lighten(color: Color3, amount: number): Color3
+	return color:Lerp(Color3.new(1, 1, 1), amount)
+end
+
+function Widgets.Corner(parent: Instance, radius: number?): UICorner
+	return Widgets.new("UICorner", { CornerRadius = UDim.new(0, radius or 12), Parent = parent })
+end
+
+function Widgets.Round(parent: Instance): UICorner
+	return Widgets.new("UICorner", { CornerRadius = UDim.new(1, 0), Parent = parent })
+end
+
+function Widgets.Stroke(parent: Instance, color: Color3?, thickness: number?, border: boolean?): UIStroke
+	return Widgets.new("UIStroke", {
+		Color = color or Widgets.Colors.PanelStroke,
+		Thickness = thickness or 3,
+		ApplyStrokeMode = if border == false then Enum.ApplyStrokeMode.Contextual else Enum.ApplyStrokeMode.Border,
+		LineJoinMode = Enum.LineJoinMode.Round,
+		Parent = parent,
+	})
+end
+
+function Widgets.Gradient(parent: Instance, top: Color3, bottom: Color3, rotation: number?): UIGradient
+	return Widgets.new("UIGradient", {
+		Color = ColorSequence.new(top, bottom),
+		Rotation = rotation or 90,
+		Parent = parent,
+	})
+end
+
+function Widgets.Rainbow(parent: Instance, rotation: number?): UIGradient
+	return Widgets.new("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 220, 255)),
+			ColorSequenceKeypoint.new(0.25, Color3.fromRGB(150, 110, 255)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 80, 200)),
+			ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 200, 60)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 255, 90)),
+		}),
+		Rotation = rotation or 0,
+		Parent = parent,
+	})
+end
+
+-- A text label with the chunky outlined look used everywhere.
+-- Extra props: StrokeThickness (0 = no outline), MaxTextSize.
+function Widgets.Label(props: { [string]: any }): TextLabel
+	local label = Widgets.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Font = Widgets.Font,
+		TextColor3 = Widgets.Colors.Text,
+		TextScaled = true,
+		Text = "",
+	})
+	for key, value in props do
+		if key ~= "StrokeThickness" and key ~= "MaxTextSize" and key ~= "Parent" then
+			(label :: any)[key] = value
+		end
+	end
+	if props.StrokeThickness ~= 0 then
+		Widgets.Stroke(label, Widgets.Colors.TextStroke, props.StrokeThickness or 2, false)
+	end
+	if props.MaxTextSize then
+		Widgets.new("UITextSizeConstraint", { MaxTextSize = props.MaxTextSize, Parent = label })
+	end
+	label.Parent = props.Parent
+	return label
+end
+
+-- Button with a gradient, outline, centred label and a squish animation.
+function Widgets.Button(props: { [string]: any }): (TextButton, TextLabel)
+	local color = props.Color or Widgets.Colors.Green
+	local button = Widgets.new("TextButton", {
+		Name = props.Name or "Button",
+		AutoButtonColor = false,
+		Text = "",
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Size = props.Size or UDim2.fromOffset(180, 56),
+		Position = props.Position or UDim2.new(),
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		LayoutOrder = props.LayoutOrder or 0,
+		ZIndex = props.ZIndex or 1,
+	})
+	Widgets.Corner(button, props.Corner or 12)
+	local stroke = Widgets.Stroke(button, Widgets.Darken(color, 0.55), props.StrokeThickness or 3)
+	local gradient = Widgets.Gradient(button, Widgets.Lighten(color, 0.15), Widgets.Darken(color, 0.12))
+
+	local label = Widgets.Label({
+		Name = "Label",
+		Text = props.Text or "",
+		Size = UDim2.new(1, -16, 1, -12),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		MaxTextSize = props.TextSize,
+		ZIndex = (props.ZIndex or 1) + 1,
+		Parent = button,
+	})
+
+	local scale = Widgets.new("UIScale", { Parent = button })
+	local function tweenScale(target: number)
+		TweenService:Create(scale, TweenInfo.new(0.08, Enum.EasingStyle.Quad), { Scale = target }):Play()
+	end
+	button.MouseEnter:Connect(function()
+		tweenScale(1.05)
+	end)
+	button.MouseLeave:Connect(function()
+		tweenScale(1)
+	end)
+	button.MouseButton1Down:Connect(function()
+		tweenScale(0.92)
+	end)
+	button.MouseButton1Up:Connect(function()
+		tweenScale(1)
+	end)
+
+	buttonColorSetters[button] = function(newColor: Color3)
+		gradient.Color = ColorSequence.new(Widgets.Lighten(newColor, 0.15), Widgets.Darken(newColor, 0.12))
+		stroke.Color = Widgets.Darken(newColor, 0.55)
+	end
+
+	button.Parent = props.Parent
+	return button, label
+end
+
+-- Recolours a button made with Widgets.Button (e.g. Buy -> Owned).
+function Widgets.SetButtonColor(button: GuiButton, color: Color3)
+	local setter = buttonColorSetters[button]
+	if setter then
+		setter(color)
+	end
+end
+
+-- Keeps UIScales proportional to the screen height so the UI fits phones.
+local function viewportScale(): number
+	local camera = Workspace.CurrentCamera
+	local height = if camera then camera.ViewportSize.Y else 800
+	return math.clamp(height / 820, 0.48, 1.3)
+end
+
+function Widgets.ViewportScale(): number
+	return viewportScale()
+end
+
+function Widgets.AutoScale(parent: Instance, multiplier: number?): UIScale
+	local scale = Widgets.new("UIScale", { Scale = viewportScale() * (multiplier or 1), Parent = parent })
+	table.insert(autoScales, { Scale = scale, Multiplier = multiplier or 1 })
+	autoMultipliers[scale] = multiplier or 1
+	return scale
+end
+
+local function refreshScales()
+	local value = viewportScale()
+	for _, entry in autoScales do
+		entry.Scale.Scale = value * entry.Multiplier
+	end
+end
+
+local function watchCamera(camera: Camera?)
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(refreshScales)
+		refreshScales()
+	end
+end
+watchCamera(Workspace.CurrentCamera)
+Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	watchCamera(Workspace.CurrentCamera)
+end)
+
+-- Modal panel: brown body, yellow header with a title and a red close button.
+function Widgets.Panel(parent: Instance, title: string, size: Vector2): (Frame, Frame, TextButton)
+	local panel = Widgets.new("Frame", {
+		Name = "Panel",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.52),
+		Size = UDim2.fromOffset(size.X, size.Y),
+		BackgroundColor3 = Widgets.Colors.Panel,
+		Visible = false,
+		ZIndex = 20,
+		Parent = parent,
+	})
+	Widgets.Corner(panel, 16)
+	Widgets.Stroke(panel, Widgets.Colors.PanelStroke, 4)
+	Widgets.AutoScale(panel)
+
+	local header = Widgets.new("Frame", {
+		Name = "Header",
+		Size = UDim2.new(1, 0, 0, 62),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ZIndex = 21,
+		Parent = panel,
+	})
+	Widgets.Corner(header, 16)
+	Widgets.Gradient(header, Color3.fromRGB(255, 222, 90), Color3.fromRGB(240, 170, 20))
+	Widgets.Stroke(header, Widgets.Colors.PanelStroke, 4)
+
+	Widgets.Label({
+		Name = "Title",
+		Text = title,
+		Size = UDim2.new(1, -120, 0, 40),
+		Position = UDim2.new(0, 20, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		StrokeThickness = 3,
+		ZIndex = 22,
+		Parent = header,
+	})
+
+	local close = Widgets.Button({
+		Name = "Close",
+		Text = "X",
+		Color = Widgets.Colors.Red,
+		Size = UDim2.fromOffset(50, 50),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(1, -8, 0, 8),
+		ZIndex = 24,
+		Parent = panel,
+	})
+
+	local content = Widgets.new("Frame", {
+		Name = "Content",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(18, 76),
+		Size = UDim2.new(1, -36, 1, -92),
+		ZIndex = 21,
+		Parent = panel,
+	})
+
+	return panel, content, close
+end
+
+-- Pops a GuiObject in with a quick bounce (reuses its UIScale if it has one).
+function Widgets.PopIn(gui: GuiObject)
+	local scale = gui:FindFirstChildOfClass("UIScale")
+	if not scale then
+		scale = Widgets.new("UIScale", { Parent = gui })
+	end
+	local target = 1
+	local multiplier = autoMultipliers[scale]
+	if multiplier then
+		target = viewportScale() * multiplier
+	end
+	scale.Scale = target * 0.6
+	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = target })
+		:Play()
+end
+
+return Widgets
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="Workspace" referent="19">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="NeedsPivotMigration">false</bool>
+      <bool name="StreamingEnabled">false</bool>
+    </Properties>
+  </Item>
+</roblox>
